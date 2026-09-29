@@ -105,6 +105,7 @@ function renderMail(args, format) {
 			server: { __version: 'test' },
 			messageSub: Util.prototype.messageSub,
 			fancyMailTemplate: '<html><body>{{markdown}}</body></html>',
+			logDebug: function() {},
 			loadMailTemplate(name, callback) {
 				callback(null, fs.readFileSync('sample_conf/emails/activity.txt', 'utf8'));
 			},
