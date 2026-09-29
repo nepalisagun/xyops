@@ -1562,6 +1562,10 @@ div.sel_dialog_scrollarea {
 	max-height: 38vh !important;
 }
 
+body.safari .scroll_shadows, body.safari .sel_dialog_scrollarea, body.safari .dialog_box_content.scroll {
+	background: none !important;
+}
+
 /* JSON Tree Data Explorer */
 
 #d_ex_tree {
