@@ -174,6 +174,11 @@ app.comm = {
 					Debug.trace('user', "Software version mismatch: " + data.version + " != " + app.version);
 					this.forceVersionRefresh(data);
 				}
+				if (data.extChecksum && app.extChecksum && (data.extChecksum != app.extChecksum)) {
+					// extensions were changed, so we need a refresh
+					Debug.trace('user', "Extension checksum mismatch: " + data.extChecksum + " != " + app.extChecksum);
+					this.forceExtensionRefresh(data);
+				}
 			break;
 			
 			case 'logout':
@@ -237,6 +242,17 @@ app.comm = {
 	forceVersionRefresh: function(data) {
 		// server software was upgraded, need client refresh
 		var msg = `The primary conductor server was upgraded to xyOps v${data.version}.  We now need to refresh your client to complete the upgrade.  Sorry for the inconvenience!`;
+		
+		Dialog.confirm( 'Refresh Needed', msg, ['refresh', 'Refresh'], function(result) {
+			if (!result) return;
+			app.clearError();
+			window.location.reload();
+		} ); // confirm
+	},
+	
+	forceExtensionRefresh: function(data) {
+		// server extensions were changed, need client refresh
+		var msg = `An administrator has changed one or more xyOps system extensions.  We now need to refresh your client to complete the change.  Sorry for the inconvenience!`;
 		
 		Dialog.confirm( 'Refresh Needed', msg, ['refresh', 'Refresh'], function(result) {
 			if (!result) return;

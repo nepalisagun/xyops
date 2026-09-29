@@ -431,13 +431,14 @@ Page.Marketplace = class Marketplace extends Page.PageUtils {
 		var install_btn_class = 'default';
 		var show_vault = false;
 		var full_install_btn = false;
+		var is_plugin = (product.type == 'plugin');
 		
 		if (installed) {
 			if (installed.marketplace.version == product.versions[0]) install_btn_class = 'secondary';
 			else full_install_btn = true;
 			
 			var env = installed.env || product.env || null;
-			if (env && first_key(env)) show_vault = true;
+			if (env && first_key(env) && is_plugin) show_vault = true;
 		}
 		
 		// summary grid
@@ -453,7 +454,7 @@ Page.Marketplace = class Marketplace extends Page.PageUtils {
 						html += '<div class="button right icon ' + install_btn_class + '" title="' + install_btn_text + '" onClick="$P().do_install_select_version()"><i class="mdi mdi-package-up"></i></div>';
 					}
 					
-					html += '<div class="button right secondary icon" title="Edit Plugin..." onClick="$P().do_edit()"><i class="mdi mdi-file-edit-outline"></i></div>';
+					if (is_plugin) html += '<div class="button right secondary icon" title="Edit Plugin..." onClick="$P().do_edit()"><i class="mdi mdi-file-edit-outline"></i></div>';
 					if (show_vault) html += '<div class="button right secondary icon" title="Secret Vault..." onClick="$P().go_vault()"><i class="mdi mdi-shield-lock-outline"></i></div>';
 				}
 				else {
@@ -550,10 +551,12 @@ Page.Marketplace = class Marketplace extends Page.PageUtils {
 			// buttons at bottom
 			html += '<div class="box_buttons">';
 				html += `<div class="box_buttons_badge_left mobile_hide" style="color:var(--green)"><i class="mdi mdi-check-circle-outline"></i>Installed</div>`;
-				html += '<div class="button danger mobile_collapse" onClick="$P().do_delete_plugin()"><i class="mdi mdi-trash-can-outline">&nbsp;</i><span>Uninstall...</span></div>';
-				html += '<div class="button secondary mobile_collapse" onClick="$P().do_clone_plugin()"><i class="mdi mdi-content-copy">&nbsp;</i><span>Clone...</span></div>';
-				html += '<div class="button secondary mobile_collapse" onClick="$P().do_test_plugin()"><i class="mdi mdi-test-tube">&nbsp;</i><span>Test...</span></div>';
-				html += '<div class="button secondary mobile_collapse" onClick="$P().go_plugin_history()"><i class="mdi mdi-history">&nbsp;</i><span>History...</span></div>';
+				html += '<div class="button danger mobile_collapse" onClick="$P().do_delete_product()"><i class="mdi mdi-trash-can-outline">&nbsp;</i><span>Uninstall...</span></div>';
+				if (is_plugin) {
+					html += '<div class="button secondary mobile_collapse" onClick="$P().do_clone_plugin()"><i class="mdi mdi-content-copy">&nbsp;</i><span>Clone...</span></div>';
+					html += '<div class="button secondary mobile_collapse" onClick="$P().do_test_plugin()"><i class="mdi mdi-test-tube">&nbsp;</i><span>Test...</span></div>';
+					html += '<div class="button secondary mobile_collapse" onClick="$P().go_plugin_history()"><i class="mdi mdi-history">&nbsp;</i><span>History...</span></div>';
+				}
 			html += '</div>'; // box_buttons
 		}
 		
@@ -568,10 +571,33 @@ Page.Marketplace = class Marketplace extends Page.PageUtils {
 		if (installed) this.setupBoxButtonFloater();
 	}
 	
-	do_delete_plugin() {
+	do_delete_product() {
 		// jump over to plugins page and popup the delete dialog
 		var installed = this.installed;
-		Nav.go( 'Plugins?sub=edit&id=' + installed.id + '&delete=1' );
+		var product = this.product;
+		
+		switch (product.type) {
+			case 'plugin': Nav.go( 'Plugins?sub=edit&id=' + installed.id + '&delete=1' ); break;
+			case 'extension': this.do_delete_extension(); break;
+		}
+	}
+	
+	do_delete_extension() {
+		// show confirmation to delete extension and optionally restart
+		var self = this;
+		var product = this.product;
+		var installed = this.installed;
+		
+		Dialog.confirmDanger( 'Remove Extension', "Are you sure you want to <b>permanently remove</b> the extension &ldquo;" + product.title + "&rdquo;?  Note that the xyOps service on the primary conductor will be <b>restarted</b> after the removal is complete.", ['trash-can', 'Remove'], function(result) {
+			if (!result) return;
+			Dialog.showProgress( 1.0, "Removing Extension..." );
+			
+			app.api.post( 'app/delete_extension', { id: product.id, restart: true }, function(resp) {
+				app.cacheBust = hires_time_now();
+				Dialog.hideProgress();
+				app.showMessage('success', "The extension &ldquo;" + product.title + "&rdquo; is being removed in the background.");
+			}); // api.post
+		} ); // Dialog.confirmDanger
 	}
 	
 	do_test_plugin() {
@@ -666,8 +692,8 @@ Page.Marketplace = class Marketplace extends Page.PageUtils {
 		var repo_base_url = this.product.repo_url || `https://github.com/${this.product.id}`;
 		
 		var url = "https://github.com/pixlcore/xyops-marketplace/issues/new" + compose_query_string({
-			title: `Report Plugin: ${this.product.title} (${this.product.id})`,
-			body: `I'd like to report the following marketplace plugin:\n\n` + 
+			title: `Report Product: ${this.product.title} (${this.product.id})`,
+			body: `I'd like to report the following marketplace product:\n\n` + 
 				`- **Name**: ${this.product.title}\n` + 
 				`- **ID**: \`${this.product.id}\`\n` + 
 				`- **Repo**: ${repo_base_url}\n\n` + 
@@ -905,6 +931,14 @@ Page.Marketplace = class Marketplace extends Page.PageUtils {
 			var lang = app.getLangFromBinary(obj.command) || '';
 			md += "\n```" + lang + "\n" + obj.script.trim() + "\n```\n";
 		}
+		else if (product.type == 'extension') {
+			var repo_base_url = this.product.repo_url || `https://github.com/${this.product.id}`;
+			md += `\n### Extension Warning\n`;
+			md += `\nSystem extensions run inside the xyOps service and have access to all of your data.`;
+			md += `  Make sure you trust the author (**${product.author}**), and inspect the [extension's source code](${repo_base_url}) thoroughly before installing.\n`;
+			md += `\n*Also note that the xyOps primary conductor will be restarted after installation completes.*\n`;
+			obj.restart = true;
+		}
 		
 		var html = '';
 		html += '<div class="code_viewer scroll_shadows">';
@@ -935,16 +969,23 @@ Page.Marketplace = class Marketplace extends Page.PageUtils {
 			app.api.post( api_name, obj, function(resp) {
 				Dialog.hideProgress();
 				app.cacheBust = hires_time_now();
-				app.showMessage('success', `${product.title} ${ver} was installed successfully.`);
-				self.confettiParty();
 				
-				// create/update entry in app[list] due to race condition with ws broadcast
-				var new_obj = resp[ opts.name ];
-				var idx = find_object_idx(app[ opts.list ], { id: new_obj.id });
-				if (idx == -1) app[ opts.list ].push(new_obj);
-				else app[ opts.list ][idx] = new_obj;
+				if (product.type == 'extension') {
+					app.showMessage('success', `${product.title} ${ver} is being installed in the background.`);
+				}
+				else {
+					app.showMessage('success', `${product.title} ${ver} was installed successfully.`);
+					self.confettiParty();
+					
+					// create/update entry in app[list] due to race condition with ws broadcast
+					var new_obj = resp[ opts.name ];
+					var idx = find_object_idx(app[ opts.list ], { id: new_obj.id });
+					if (idx == -1) app[ opts.list ].push(new_obj);
+					else app[ opts.list ][idx] = new_obj;
+					
+					Nav.refresh();
+				}
 				
-				Nav.refresh();
 			} ); // api.post
 		};
 		

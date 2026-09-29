@@ -56,7 +56,7 @@ COPY . .
 
 ENV XYOPS_foreground=true
 ENV XYOPS_color=true
-ENV XYOPS_echo="xyOps Transaction Error error API Unbase Action Comm Job Workflow Maint Multi Scheduler SSO User Ticket Alert"
+ENV XYOPS_echo="xyOps Transaction Error error API Unbase Action Comm Job Workflow Maint Multi Extension Scheduler SSO User Ticket Alert"
 
 RUN npm install
 

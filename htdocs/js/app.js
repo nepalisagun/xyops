@@ -18,6 +18,7 @@ app.extend({
 	tracks: {},
 	cssVarCache: {},
 	ticketCountCache: {},
+	scenes: [],
 	default_prefs: {
 		
 	},
@@ -223,6 +224,16 @@ app.extend({
 		window.addEventListener( "scroll", this.onScroll.bind(this), false );
 		window.addEventListener( "scroll", debounce(this.onScrollDelay.bind(this), 250), false );
 		document.addEventListener( "visibilitychange", this.onVisibility.bind(this), false );
+		
+		// init all extensions
+		this.extensions.forEach( function(ext) {
+			if (!ext.obj || !ext.obj.init) return;
+			Debug.trace('system', "Initializing extension: " + ext.id);
+			try { ext.obj.init(); }
+			catch (err) { console.error(err); }
+		} );
+		
+		if (this.getPref('scene')) this.setScene( this.getPref('scene') );
 		
 		this.cacheBust = time_now();
 		this.page_manager = new PageManager( always_array(config.Page) );
@@ -472,21 +483,65 @@ app.extend({
 	openThemeSelector: function() {
 		// show light/dark/auto theme selector
 		var self = this;
+		var items = [
+			{ id: 'light', title: 'Light', icon: 'white-balance-sunny' }, // weather-sunny
+			{ id: 'dark', title: 'Dark', icon: 'moon-waning-crescent' }, // weather-night
+			{ id: 'auto', title: 'Auto', icon: 'circle-half-full' }
+		];
+		
+		app.scenes.forEach( function(scene, idx) {
+			if (idx == 0) items.push({ ...scene, group: "Scenes" });
+			else items.push(scene);
+		} );
+		
+		var value = this.getPref('scene') || '';
+		if (!find_object( app.scenes, { id: value } )) {
+			value = this.getPref('theme') || 'auto';
+		}
 		
 		SingleSelect.popupQuickMenu({
 			elem: '#d_theme_ctrl',
 			title: 'Select Theme',
-			items: [
-				{ id: 'light', title: 'Light', icon: 'white-balance-sunny' }, // weather-sunny
-				{ id: 'dark', title: 'Dark', icon: 'moon-waning-crescent' }, // weather-night
-				{ id: 'auto', title: 'Auto', icon: 'circle-half-full' }
-			],
-			value: this.getPref('theme') || 'auto',
+			items: items,
+			value: value,
 			
 			callback: function(value) {
-				app.setTheme(value);
+				app.clearScene();
+				
+				if (find_object( app.scenes, { id: value } )) {
+					// custom scene
+					app.setScene(value);
+				}
+				else if (value.match(/^(light|dark|auto)$/)) {
+					// standard theme
+					app.setTheme(value);
+				}
 			} // callback
 		}); // popupQuickMenu
+	},
+	
+	setScene(id) {
+		// set custom scene
+		var scene = find_object( this.scenes, { id: id } );
+		if (!scene) return;
+		
+		this.scene = scene;
+		$('body').addClass( 'scene_' + scene.id );
+		
+		this.setPref('scene', scene.id);
+		
+		// scenes may be locked to light/dark theme
+		if (scene.theme) this.setTheme(scene.theme);
+	},
+	
+	clearScene() {
+		// clear custom scene
+		if (!this.scene) return;
+		
+		this.setPref('scene', '');
+		
+		$('body').removeClass( 'scene_' + this.scene.id );
+		delete this.scene;
 	},
 	
 	qsKeyDown: function(elem, event) {
@@ -824,7 +879,7 @@ app.extend({
 		
 		var is_outdated = false;
 		
-		app.plugins.forEach( function(plugin) {
+		app.plugins.concat( app.extensions ).forEach( function(plugin) {
 			if (is_outdated) return;
 			if (!plugin.marketplace || !plugin.marketplace.id) return;
 			

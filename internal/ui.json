@@ -276,7 +276,8 @@
 		"bucket": { "name": "bucket", "list": "buckets", "icon": "pail-outline", "page": "Buckets" },
 		"secret": { "name": "secret", "list": "secrets", "icon": "shield-lock-outline", "page": "Secrets" },
 		"user": { "name": "user", "list": "users", "icon": "account", "page": "Users" },
-		"role": { "name": "role", "list": "roles", "icon": "account-group", "page": "Roles" }
+		"role": { "name": "role", "list": "roles", "icon": "account-group", "page": "Roles" },
+		"extension": { "name": "extension", "list": "extensions", "icon": "puzzle-outline" }
 	},
 	
 	"plugin_type_descriptions": {
@@ -1978,7 +1979,7 @@
 		]
 	},
 	
-	"log_files": [ "Action", "API", "Comm", "Debug", "Error", "Filesystem", "Hybrid", "Job", "Maint", "Monitor", "Multi", "Postgres", "Redis", "S3", "Scheduler", "Secret", "SQLite", "Storage", "Ticket", "Transaction", "Unbase", "User", "WebServer", "xyOps" ],
+	"log_files": [ "Action", "API", "Comm", "Debug", "Error", "Extension", "Filesystem", "Hybrid", "Job", "Maint", "Monitor", "Multi", "Postgres", "Redis", "S3", "Scheduler", "Secret", "SQLite", "Storage", "Ticket", "Transaction", "Unbase", "User", "WebServer", "xyOps" ],
 	
 	"log_column_titles": {
 		"hires_epoch": "Timestamp",
