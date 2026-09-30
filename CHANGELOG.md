@@ -1,5 +1,17 @@
 # xyOps Changelog
 
+## Version v1.1.3
+
+> September 30, 2026
+
+- [`33c76c69`](https://github.com/pixlcore/xyops/commit/33c76c69f2c3a569b31d8dab8a30df0f7e866684): Version 1.1.3
+- [`a53cd58b`](https://github.com/pixlcore/xyops/commit/a53cd58bb6abb3460d4a3ba21bee15581aed944b): Dep: Bump pixl-mail to v1.1.11 for upstream vuln fixes in nodemailer.
+- [`723b6d31`](https://github.com/pixlcore/xyops/commit/723b6d3169503a5dbc3f73ed7f0f57f5497de9f2): Feature: New event plugin "sudo" wrapper, for preserving target user's supplemental groups.  Ref #460
+- [`8a11c431`](https://github.com/pixlcore/xyops/commit/8a11c431b55a52b056a14600b4d48979a2787513): Feature: New event trigger: System Activity
+- [`105c08c5`](https://github.com/pixlcore/xyops/commit/105c08c52280481f433288e759b2bebd4a3c6a35): Feature: Custom xyOps system extensions v1
+- [`f2d02c0c`](https://github.com/pixlcore/xyops/commit/f2d02c0c1fec7f81ee547be141309540050baf99): Bug Fix: Misc logging tweaks (add mailer debug log, change job API log level).
+- [`3ed6c15e`](https://github.com/pixlcore/xyops/commit/3ed6c15e18a77ead2f50a775dad54ca8d7e83cea): CSS: Bug in Safari v27: Scroll shadow trick no longer works cleanly, so disabling it.
+
 ## Version v1.1.2
 
 > September 25, 2026
