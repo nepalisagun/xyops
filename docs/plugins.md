@@ -516,6 +516,14 @@ Note that the workflow data is shallow-merged, so you can specify a sparsely-pop
 
 The workflow data is only updated in the parent workflow when the sub-job completes.
 
+#### Abort Policy
+
+xySat needs to know how to terminate processes when a job is aborted.  This is specified by a special [Plugin.kill](data.md#plugin-kill) property.  The accepted values are as follows:
+
+- `none` means that **no** processes are killed on abort.  This is only used for very special cases.
+- `parent` means that only the **parent** process is killed on abort.  This is the default behavior for new Plugins.
+- `all` means that **all** processes are killed on abort.  Meaning, xySat will traverse the process tree from the parent process down, and kill everything.
+
 ### Action Plugins
 
 Action Plugins are designed for custom actions that take place in response to jobs starting, completing, or completing with specific result codes (e.g. success, error, warning, critical, etc.).  They can also run in response to alerts firing or clearing.  You can already assign a number of [built-in actions](actions.md) including sending an email, firing a web hook, launching an event, taking a server snapshot, and more.  But with Plugins you can write your own actions that do anything you want.  They can even be configured to accept a custom set of parameters that are configured by the user in the UI.

@@ -1438,6 +1438,18 @@ Page.Plugins = class Plugins extends Page.PageUtils {
 			caption: 'Select how you would like xySat to handle shutting down running jobs when they are aborted.'
 		});
 		
+		// sudo
+		html += this.getFormRow({
+			id: 'd_ep_sudo',
+			label: 'Launch Options:',
+			content: this.getFormCheckbox({
+				id: 'fe_ep_sudo',
+				label: 'Wrap With Sudo',
+				checked: !!plugin.sudo
+			}),
+			caption: "Check this box to wrap the plugin executable in a call to `sudo` with the selected UID and GID.  This is useful for preserving the user's supplemental groups inside the job."
+		});
+		
 		// runner
 		html += this.getFormRow({
 			id: 'd_ep_runner',
@@ -1508,6 +1520,7 @@ Page.Plugins = class Plugins extends Page.PageUtils {
 		
 		// only show kill checkbox for event type
 		$('#d_ep_kill').toggle( plugin_type == 'event' );
+		$('#d_ep_sudo').toggle( plugin_type == 'event' );
 		$('#d_ep_runner').toggle( plugin_type == 'event' );
 	}
 	
@@ -1527,10 +1540,12 @@ Page.Plugins = class Plugins extends Page.PageUtils {
 		
 		if (plugin.type == 'event') {
 			plugin.kill = $('#fe_ep_kill').val();
+			plugin.sudo = $('#fe_ep_sudo').is(':checked');
 			plugin.runner = $('#fe_ep_runner').is(':checked');
 		}
 		else {
 			delete plugin.kill;
+			delete plugin.sudo;
 			delete plugin.runner;
 		}
 		

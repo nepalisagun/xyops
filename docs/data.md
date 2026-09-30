@@ -1210,9 +1210,19 @@ This string specifies how xySat should terminate processes when a job is aborted
 - `parent` means that only the **parent** process is killed on abort.  This is the default behavior for new Plugins.
 - `all` means that **all** processes are killed on abort.  Meaning, xySat will traverse the process tree from the parent process down, and kill everything.
 
+### Plugin.sudo
+
+This boolean, when set to `true`, will cause xySat to launch the plugin executable with a special `sudo` command wrapper, with the appropriate UID and GID specified on the command-line, rather than part of the child process spawn options.  This should be used when you want to run the plugin as a custom user, but also preserve the user's supplemental groups.  Example wrapper command:
+
+```sh
+sudo -n -E -u '#1000' -g '#1000' -- /usr/bin/your-plugin-executable
+```
+
+When using this mode, it is recommended that you set the [abort policy](#plugin-kill) to "all", so the child of the `sudo` command receives the termination signal.
+
 ### Plugin.runner
 
-This boolean, when `true`, indicates that the job will be running remotely (i.e. not a direct child process of xySat).  This is only used for Event Plugins.
+This boolean, when set to `true`, indicates that the job will be running remotely (i.e. not a direct child process of xySat).  This is only used for Event Plugins.
 
 The idea is that when a job is running remotely, we cannot monitor system resources for it.  Also, input and output files simply do not work in these cases (because xySat expects them to be on the local filesystem where it is running).  The `runner` property tells xyOps (and ultimately xySat) that the job is running remotely out if its reach, and it should not perform the usual process and network monitoring, and file management.  Those duties get delegated to a tool such as [xyRun](https://github.com/pixlcore/xyrun).
 
