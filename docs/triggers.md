@@ -65,11 +65,11 @@ Allow the event to be launched on demand by users (UI) and API keys (API). Does 
 
 Parameters: None
 
-Notes:
+**Notes:**
 
 - If an event does not have an enabled `manual` trigger, attempts to run it via the API/UI are rejected (unless test paths are used).
 
-Example:
+**Example:**
 
 ```json
 {
@@ -82,7 +82,7 @@ Example:
 
 Define a repeating schedule similar to [Unix Cron](https://en.wikipedia.org/wiki/Cron) using arrays of years, months, days, weekdays, hours, and minutes. Omitted fields mean "all" in that category. Evaluation occurs in the selected timezone (or the server default if omitted).
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
@@ -96,7 +96,7 @@ Parameters:
 | `params` | Object | Optional | Optionally include parameter overrides for the event / plugin. |
 | `tags` | Array | Optional | Optionally include a set of [Tag.id](data.md#tag-id)s to add to the job as it starts. |
 
-Notes:
+**Notes:**
 
 - You may specify both `days` and `weekdays`. All criteria must match.
 - If any list is empty or omitted, it is treated as "all" (a.k.a `*` in cron parlance).
@@ -130,7 +130,7 @@ Example: Last day of every month at 23:55:
 
 Run the event on a fixed interval starting from a specific epoch. Timezone-agnostic and can launch multiple jobs within the current minute at second offsets.
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
@@ -139,7 +139,7 @@ Parameters:
 | `params` | Object | Optional | Optionally include parameter overrides for the event / plugin. |
 | `tags` | Array | Optional | Optionally include a set of [Tag.id](data.md#tag-id)s to add to the job as it starts. |
 
-Notes:
+**Notes:**
 
 - The scheduler computes all hits within the current minute and launches at the exact second(s).
 - Mutually exclusive with `precision` and `delay`.
@@ -159,7 +159,7 @@ Example: Every 90 seconds starting at a specific time:
 
 Launch exactly once during the specified minute.  To launch at a particular second within the minute, add a [Precision](#precision) modifier to the event.
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
@@ -192,7 +192,7 @@ For the landing page presentation, when the job is started, progress is streamed
 
 This is an "on-demand" trigger, and thus it skips over modifiers like [Catch-Up](#catch-up), [Range](#range), [Blackout](#blackout), [Delay](#delay), [Precision](#precision), [Quiet](#quiet), and [Plugin](#plugin).
 
-Trigger Parameters:
+**Trigger Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
@@ -200,7 +200,7 @@ Trigger Parameters:
 | `token` | String | n/a | Upon creation, the `key` is hashed (using salted SHA-256) to produce a cryptographic token that is stored in this property. |
 | `body` | String | Optional | Custom Markdown text to render onto the landing page. |
 
-Example:
+**Example:**
 
 ```json
 {
@@ -232,7 +232,7 @@ If a custom `Response` is provided, the job runs in the background, and the user
 
 This trigger type binds the event to one or more keyboard shortcuts, so any user (with appropriate privileges) can run the job by hitting a key combo will logged into the xyOps UI.
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
@@ -251,16 +251,34 @@ This trigger will automatically run a job for the event on xyOps startup.  Speci
 
 It is **highly recommended** that you also add a [Max Queue Limit](limits.md#max-queue-limit) to the event when this trigger is used.  This ensures that if no target servers are available (very common on initial startup), the job will be queued up until at least one server in the target set is available.  Then it will automatically dequeue and run proper.
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `params` | Object | Optional | Optionally include parameter overrides for the event / plugin. |
 | `tags` | Array | Optional | Optionally include a set of [Tag.id](data.md#tag-id)s to add to the job as it starts. |
 
-This is a special-case trigger, and thus it skips over modifiers like [Catch-Up](#catch-up), [Range](#range), [Blackout](#blackout), [Delay](#delay), [Precision](#precision), [Quiet](#quiet), and [Plugin](#plugin).
+**Notes:**
 
-Note that the startup trigger will not activate if the xyOps service was manually restarted due to a user-requested upgrade, restart or shutdown action from the UI.
+- This is a special-case trigger, and thus it skips over modifiers like [Catch-Up](#catch-up), [Range](#range), [Blackout](#blackout), [Delay](#delay), [Precision](#precision), [Quiet](#quiet), and [Plugin](#plugin).
+- The startup trigger will not activate if the xyOps service was manually restarted due to a user-requested upgrade, restart or shutdown action from the UI.
+
+### Activity
+
+This trigger will automatically run a job upon selected xyOps system activity, including types such as "Channel Created", "Event Updated" or "Plugin Deleted".  The trigger may be configured to fire on any number of selected activity types.  The activity name and entity ID (if applicable) are also passed into the launched job as input data properties.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `activities` | Array | **Required** | An array of activity IDs, e.g. `channel_create`, `event_update`, `plugin_delete`. |
+| `params` | Object | Optional | Optionally include parameter overrides for the event / plugin. |
+| `tags` | Array | Optional | Optionally include a set of [Tag.id](data.md#tag-id)s to add to the job as it starts. |
+
+**Notes:**
+
+- This is a special-case trigger, and thus it skips over modifiers like [Catch-Up](#catch-up), [Range](#range), [Blackout](#blackout), [Delay](#delay), [Precision](#precision), [Quiet](#quiet), and [Plugin](#plugin).
+- Activity triggers only run when the scheduler is enabled.
 
 ### Catch-Up
 
@@ -284,14 +302,14 @@ Catch-Up mode will **not** re-run jobs that failed or were aborted.  This is by 
 
 Parameters: None
 
-Notes:
+**Notes:**
 
 - Applies to schedule, interval, and single triggers on the same event.
 - On each scheduler tick, the event's cursor advances one minute at a time, evaluating schedules for each minute until present time.
 - Long outages can produce a backlog of late jobs; ensure your event and infrastructure can handle catch-up bursts.
 - Time Machine: In the UI you can set a custom cursor timestamp to re-run a historical window (set cursor in the past) or skip a backlog (set cursor near "now").
 
-Example:
+**Example:**
 
 ```json
 {
@@ -306,7 +324,7 @@ Every Nth is an optional schedule modifier that will skip over some scheduled jo
 
 A good example use of this is if you want to schedule a job that runs at a specific time every N days, regardless of the weekday or day of the month.  For e.g. if you want to run a job every 14 days (exactly once every two weeks), you can just set the job to run daily and set the Nth to 14 (run every 14th job).  Alternatively, you can set the job to run every week on a specific weekday, but set the Nth to 2, which would have the same effect.
 
-Example:
+**Example:**
 
 ```json
 {
@@ -322,14 +340,14 @@ Note that manual runs and those invoked via API skip over this modifier, as it o
 
 Restrict scheduling to a date/time window. Prevents launches before `start` and after `end` (unless time is inside another range). Endpoints are inclusive.  As a "modifier" this option only takes effect when jobs are launched from a scheduler trigger (i.e. not launched manually via UI or API).
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `start` | Number | Optional | Earliest allowed time (Unix seconds). |
 | `end` | Number | Optional | Latest allowed time (Unix seconds). |
 
-Notes:
+**Notes:**
 
 - Ranges may be open or closed.  Meaning, you can specify only `start`, only `end`, or both. If both are set, `start` must be ≤ `end`.
 - When a Range trigger is created or updated, xyOps normalizes `start` and `end` down to the beginning of their respective minutes.
@@ -350,20 +368,20 @@ Example: Only run between March 1 and May 31 (inclusive):
 
 Prevent any automatic launches during a specific date/time window. Endpoints are inclusive.  As a "modifier" this option only takes effect when jobs are launched from a scheduler trigger (i.e. not launched manually via UI or API).
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `start` | Number | Yes | Start of blackout (Unix seconds). |
 | `end` | Number | Yes | End of blackout (Unix seconds). Must be ≥ `start`. |
 
-Notes:
+**Notes:**
 
 - Useful for maintenance windows or holidays.
 - When a Blackout trigger is created or updated, xyOps normalizes `start` and `end` down to the beginning of their respective minutes.
 - Applies to automatic triggers (schedule/interval/plugin/single). Does not affect manual runs.
 
-Example:
+**Example:**
 
 ```json
 {
@@ -378,7 +396,7 @@ Example:
 
 Add a starting delay to all scheduler-launched jobs for the event. Does not affect manual/API runs. Mutually exclusive with `interval` and `precision`.  As a "modifier" this option only takes effect when jobs are launched from a scheduler trigger (i.e. not launched manually via UI or API).
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
@@ -398,13 +416,13 @@ Example (delay all launches by 2 minutes):
 
 Launch within the scheduled minute at specific second offsets. Augments other automatic triggers to achieve sub-minute starts. Mutually exclusive with `interval` and `delay`.  As a "modifier" this option only takes effect when jobs are launched from a scheduler trigger (i.e. not launched manually via UI or API).
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `seconds` | Array(Number) | Yes | One or more second offsets within 0-59. |
 
-Notes:
+**Notes:**
 
 - Applies to scheduled minutes (and to interval minutes when compatible). Multiple jobs may be launched in a single minute at the listed seconds.
 - Does not affect manual/API runs.
@@ -423,6 +441,8 @@ Example (launch at :05, :20, :35, :50 within each matched minute):
 
 The "Quiet" modifier allows you to configure jobs to run silently (i.e. completely invisible to the UI), and also optionally ephemeral (so they self-delete upon completion).  As a "modifier" this option only takes effect when jobs are launched from a scheduler trigger (i.e. not launched manually via UI or API).  Each quiet mode can be enabled or disabled separately:
 
+**Parameters:**
+
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `invisible` | Boolean | Yes | Upcoming, queued and running jobs are completely hidden from the UI. |
@@ -440,7 +460,7 @@ A few notes about behaviors:
 
 Use a custom [Trigger Plugin](plugins.md#trigger-plugins) to decide whether to launch a job or not. The plugin runs with configured parameters and returns a launch/no-launch decision per each scheduled run.  This is a "modifier" so it needs to be used in conjunction with a standard schedule trigger.
 
-Parameters:
+**Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
@@ -448,12 +468,12 @@ Parameters:
 | `params` | Object | Optional | Plugin-defined configuration key/values. |
 | `timezone` | String | Optional | Timezone context provided to the plugin (defaults to server timezone). |
 
-Notes:
+**Notes:**
 
 - At a high level, xyOps invokes the plugin once per scheduled run with context, and launches jobs if the plugin indicates so. Plugins can also request a per-launch delay and may provide input data/files for the job.  See [Plugins](plugins.md) for details.
 - For use cases like watching for new files, set a schedule trigger to run every minute, so the Plugin is checked as often as possible.
 
-Example:
+**Example:**
 
 ```json
 {

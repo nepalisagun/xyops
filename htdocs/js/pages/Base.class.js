@@ -1717,6 +1717,9 @@ Page.Base = class Base extends Page {
 		else if (job.source.match(/startup/i)) {
 			return '<i class="mdi mdi-desktop-classic">&nbsp;</i>Startup';
 		}
+		else if (job.source.match(/activity/i)) {
+			return '<i class="mdi mdi-history">&nbsp;</i>System Activity';
+		}
 		else return '(Unknown)';
 	}
 	

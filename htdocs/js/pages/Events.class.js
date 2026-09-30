@@ -167,6 +167,7 @@ Page.Events = class Events extends Page.PageUtils {
 								{ id: 'interval', title: "Interval", icon: 'timer-sand' },
 								{ id: 'keyboard', title: "Keyboard", icon: 'keyboard-outline' },
 								{ id: 'startup', title: "Startup", icon: 'desktop-classic' },
+								{ id: 'activity', title: "Activity", icon: 'history' },
 								{ id: 'catchup', title: "Catch-Up", icon: 'calendar-refresh-outline', group: "Modifiers" },
 								{ id: 'nth', title: "Every Nth", icon: 'transit-skip' },
 								{ id: 'range', title: "Range", icon: 'calendar-range-outline' },
@@ -3030,8 +3031,9 @@ Page.Events = class Events extends Page.PageUtils {
 			this.event.triggers.filter( function(row) { return row.type == 'interval'; } ),
 			this.event.triggers.filter( function(row) { return row.type == 'keyboard'; } ),
 			this.event.triggers.filter( function(row) { return row.type == 'startup'; } ),
+			this.event.triggers.filter( function(row) { return row.type == 'activity'; } ),
 			this.event.triggers.filter( function(row) { return row.type == 'plugin'; } ),
-			this.event.triggers.filter( function(row) { return !(row.type || '').match(/^(schedule|startup|interval|single|manual|magic|keyboard|plugin)$/); } )
+			this.event.triggers.filter( function(row) { return !(row.type || '').match(/^(schedule|startup|interval|single|manual|magic|keyboard|activity|plugin)$/); } )
 		);
 	}
 	
@@ -3072,7 +3074,7 @@ Page.Events = class Events extends Page.PageUtils {
 				}) + '</div>',
 				'<div class="td_big nowrap">' + '<button class="link" onClick="$P().editTrigger('+idx+')">' + nice_desc.replace(/\&nbsp\;/g, '') + '</button></div>',
 				'<div class="ellip nowrap">' + nice_icon + nice_type + '</div>',
-				item.type.match(/^(schedule|single|interval|startup|keyboard)$/) ? self.getNiceTagList( item.tags || [] ) : 'n/a',
+				item.type.match(/^(schedule|single|interval|startup|keyboard|activity)$/) ? self.getNiceTagList( item.tags || [] ) : 'n/a',
 				'<span class="nowrap">' + actions.join(' | ') + '</span>'
 			];
 			
@@ -3398,6 +3400,23 @@ Page.Events = class Events extends Page.PageUtils {
 				checked: trigger.watch
 			}),
 			caption: 'This will redirect the user to the live job details page as soon as the job starts.'
+		});
+		
+		// activity
+		html += this.getFormRow({
+			id: 'd_et_activities',
+			label: 'Activity Types:',
+			content: this.getFormMenuMulti({
+				id: 'fe_et_activities',
+				title: 'Select Activities:',
+				placeholder: '(None)',
+				options: Object.keys(config.ui.activity_titles).map( id => this.getActivityDisplayArgs(id) ),
+				values: trigger.activities || [],
+				default_icon: 'history',
+				'data-hold': 1,
+				// 'data-shrinkwrap': 1
+			}),
+			caption: 'Select one or more system activity types to fire the trigger.'
 		});
 		
 		// catch-up
@@ -3766,6 +3785,12 @@ Page.Events = class Events extends Page.PageUtils {
 					trigger.watch = $('#fe_et_keyboard_watch').is(':checked');
 				break;
 				
+				case 'activity':
+					// activities
+					trigger.activities = $('#fe_et_activities').val();
+					if (!trigger.activities.length) return app.badField('#fe_et_activities', "Please select one or more activity types for the trigger.");
+				break;
+				
 				case 'catchup':
 					// time machine
 					if ($('#fe_et_time_machine').val()) {
@@ -3859,7 +3884,7 @@ Page.Events = class Events extends Page.PageUtils {
 			} // switch trigger.type
 			
 			// grab tags and params for specific trigger types
-			if (trigger.type.match(/^(schedule|single|interval|startup|keyboard)$/)) {
+			if (trigger.type.match(/^(schedule|single|interval|startup|keyboard|activity)$/)) {
 				trigger.tags = $('#fe_et_tags').val();
 				trigger.params = self.getParamValues(self.event.fields || []);
 				if (!trigger.params) return; // invalid
@@ -3984,6 +4009,12 @@ Page.Events = class Events extends Page.PageUtils {
 					$('#d_et_params').show();
 				break;
 				
+				case 'activity':
+					$('#d_et_activities').show();
+					$('#d_et_tags').show();
+					$('#d_et_params').show();
+				break;
+				
 				case 'catchup':
 					$('#d_et_catchup_desc').show();
 					$('#d_et_time_machine').show();
@@ -4056,7 +4087,7 @@ Page.Events = class Events extends Page.PageUtils {
 		}); // type change
 		
 		SingleSelect.init( $('#fe_et_type, #fe_et_tz, #fe_et_plugin') );
-		MultiSelect.init( $('#fe_et_years, #fe_et_months, #fe_et_weekdays, #fe_et_days, #fe_et_hours, #fe_et_minutes, #fe_et_seconds, #fe_et_tags') );
+		MultiSelect.init( $('#fe_et_years, #fe_et_months, #fe_et_weekdays, #fe_et_days, #fe_et_hours, #fe_et_minutes, #fe_et_seconds, #fe_et_tags, #fe_et_activities') );
 		RelativeTime.init( $('#fe_et_interval') );
 		KeySelect.init( '#fe_et_keyboard_keys' );
 		// this.updateAddRemoveMe('#fe_eja_email');

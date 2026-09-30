@@ -3127,6 +3127,7 @@ Each trigger has a `type` property which describes its behavior.  The different 
 | `magic` | **Magic Link** | Generate a secure URL which can launch the event without a login session.  See [Magic Link](triggers.md#magic-link) for details. |
 | `keyboard` | **Keyboard** | Bind one or more keyboard shortcuts to the event, so users can launch it from the UI.  Requires an additional `keys` property. |
 | `startup` | **Startup** | Automatically run the event when xyOps starts and becomes the primary conductor. |
+| `activity` | **Activity** | Automatically run the event upon specified xyOps activity, such as "Event Updated". See [Activity](triggers.md#activity) for details. |
 | `catchup` | **Catch-Up** | Ensure that *every* scheduled job runs, even if it has to run late. |
 | `nth` | **Every Nth** | Run only every Nth scheduled job.  See [Every Nth](triggers.md#every-nth) for details. |
 | `range` | **Range** | Set a starting and/or ending date for a repeating event.  Requires additional `start` and/or `end` properties, set to [Unix timestamps](https://en.wikipedia.org/wiki/Unix_time) which are normalized down to whole minutes. |

@@ -100,6 +100,101 @@
 		{ "id": "user_avatars", "title": "User Avatars", "icon": "account-circle" }
 	],
 	
+	"activity_titles": {
+		"alert_create": "Alert Definition Created",
+		"alert_update": "Alert Definition Updated",
+		"alert_delete": "Alert Definition Deleted",
+		"alert_update_tickets": "Alert Invocation Tickets Updated",
+		"alert_delete_invocation": "Alert Invocation Deleted",
+		
+		"apikey_create": "API Key Created",
+		"apikey_update": "API Key Updated",
+		"apikey_delete": "API Key Deleted",
+		
+		"category_create": "Category Created",
+		"category_update": "Category Updated",
+		"category_delete": "Category Deleted",
+		
+		"channel_create": "Channel Created",
+		"channel_update": "Channel Updated",
+		"channel_delete": "Channel Deleted",
+		
+		"event_create": "Event Created",
+		"event_update": "Event Updated",
+		"event_delete": "Event Deleted",
+		
+		"job_update": "Job Updated",
+		"job_update_tags": "Job Tags Updated",
+		"job_update_tickets": "Job Tickets Updated",
+		"job_update_comments": "Job Comments Updated",
+		"job_abort": "Job Aborted",
+		"job_delete": "Job Deleted",
+		"job_delete_file": "Job File Deleted",
+		"job_resume": "Job Resumed",
+		"queue_flush": "Job Queue Flushed",
+		
+		"group_create": "Server Group Created",
+		"group_update": "Server Group Updated",
+		"group_delete": "Server Group Deleted",
+		"group_watch": "Server Group Watch Set",
+		
+		"monitor_create": "Monitor Created",
+		"monitor_update": "Monitor Updated",
+		"monitor_delete": "Monitor Deleted",
+		
+		"plugin_create": "Plugin Created",
+		"plugin_update": "Plugin Updated",
+		"plugin_delete": "Plugin Deleted",
+		
+		"tag_create": "Tag Created",
+		"tag_update": "Tag Updated",
+		"tag_delete": "Tag Deleted",
+		
+		"web_hook_create": "Web Hook Created",
+		"web_hook_update": "Web Hook Updated",
+		"web_hook_delete": "Web Hook Deleted",
+		
+		"bucket_create": "Bucket Created",
+		"bucket_update": "Bucket Updated",
+		"bucket_delete": "Bucket Deleted",
+		
+		"secret_create": "Secret Created",
+		"secret_update": "Secret Updated",
+		"secret_delete": "Secret Deleted",
+		"secret_access": "Secret Accessed",
+		
+		"ticket_create": "Ticket Created",
+		"ticket_update": "Ticket Updated",
+		"ticket_delete": "Ticket Deleted",
+		"ticket_add_change": "Ticket Comment Added",
+		"ticket_update_change": "Ticket Comment Updated",
+		
+		"user_create": "User Created",
+		"user_update": "User Updated",
+		"user_delete": "User Deleted",
+		"user_login": "User Logged In",
+		"user_password": "User Password Changed",
+		
+		"role_create": "Role Created",
+		"role_update": "Role Updated",
+		"role_delete": "Role Deleted",
+		
+		"server_add": "Server Connected",
+		"server_remove": "Server Disconnected",
+		"server_delete": "Server Deleted",
+		"server_update": "Server Information Updated",
+		"server_watch": "Server Watch Set",
+		
+		"master_primary": "Conductor Server Became Primary",
+		"peer_add": "Conductor Server Added",
+		"peer_disconnect": "Conductor Server Disconnected",
+		"peer_command": "Control Command Sent",
+		
+		"state_update": "Internal State Updated",
+		"internal_job": "Internal Job Completed",
+		"config_update": "System Configuration Updated"
+	},
+	
 	"activity_descriptions": {
 		"alert_create": "Alert definition created: [description] ([alert.id])",
 		"alert_update": "Alert definition updated: [description] ([alert.id])",
@@ -1212,6 +1307,7 @@
 		{ "id": "magic", "title": "Magic Link", "icon": "link-variant" },
 		{ "id": "keyboard", "title": "Keyboard", "icon": "keyboard-outline" },
 		{ "id": "startup", "title": "Startup", "icon": "desktop-classic" },
+		{ "id": "activity", "title": "System Activity", "icon": "history" },
 		{ "id": "catchup", "title": "Catch-Up", "icon": "calendar-refresh-outline", "group": "Modifiers" },
 		{ "id": "nth", "title": "Every Nth", "icon": "transit-skip" },
 		{ "id": "range", "title": "Range", "icon": "calendar-range-outline" },

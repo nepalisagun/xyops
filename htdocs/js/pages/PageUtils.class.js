@@ -529,7 +529,7 @@ Page.PageUtils = class PageUtils extends Page.Base {
 		var hasEnabledTriggers = function(event) {
 			return (event.triggers || []).find( function(trigger) {
 				if (!trigger.enabled) return false;
-				return !!trigger.type.match(/^(schedule|interval|single|startup|keyboard)$/);
+				return !!trigger.type.match(/^(schedule|interval|single|startup|keyboard|activity)$/);
 			} );
 		};
 		
@@ -4457,7 +4457,7 @@ Page.PageUtils = class PageUtils extends Page.Base {
 		
 		// massage titles
 		if (!trigger.enabled) short_desc = '(Disabled)';
-		if (trigger.type.match(/^(interval|single|startup|keyboard)$/)) nice_title = alt_type;
+		if (trigger.type.match(/^(interval|single|startup|keyboard|activity)$/)) nice_title = alt_type;
 		
 		if (trigger.type.match(/^(catchup|nth|range|blackout|delay|precision|quiet|plugin)$/)) {
 			// option triggers are rendered as pure circles with no pole
@@ -6018,6 +6018,15 @@ Page.PageUtils = class PageUtils extends Page.Base {
 				short_desc = this.getShortHotKeyListText(item.keys || []);
 			break;
 			
+			case 'activity':
+				nice_icon = '<i class="mdi mdi-gesture-tap-button"></i>';
+				nice_type = 'On-Demand';
+				alt_type = 'Activity';
+				var len = (item.activities || []).length;
+				nice_desc = '<i class="mdi mdi-history">&nbsp;</i><b>Activity:</b> ' + commify(len) + ' ' + pluralize('item', len);
+				short_desc = commify(len) + ' ' + pluralize('item', len);
+			break;
+			
 			case 'catchup':
 				nice_icon = '<i class="mdi mdi-cog-outline"></i>';
 				nice_type = alt_type = 'Modifier';
@@ -6690,6 +6699,22 @@ Page.PageUtils = class PageUtils extends Page.Base {
 			msg += `.  Please proceed with caution, as your edits may collide.`;
 			app.showMessage('warning', msg, 0);
 		}
+	}
+	
+	getActivityDisplayArgs(id) {
+		// get display args for activity given id (i.e. 'event_delete')
+		var args = { id: id, title: config.ui.activity_titles[id] || id };
+		
+		Object.keys(config.ui.activity_types).forEach( key => {
+			var re = new RegExp(key);
+			if (id.match(re)) {
+				merge_hash_into( args, config.ui.activity_types[key] );
+				return true;
+			}
+			return false;
+		} );
+		
+		return args;
 	}
 	
 };
