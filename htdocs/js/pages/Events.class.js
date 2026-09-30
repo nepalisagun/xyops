@@ -3419,6 +3419,35 @@ Page.Events = class Events extends Page.PageUtils {
 			caption: 'Select one or more system activity types to fire the trigger.'
 		});
 		
+		// activity exclusions
+		var exclude_items = [];
+		app.users.forEach( function(user, idx) {
+			var stub = { id: user.username, title: user.full_name, icon: user.icon || 'account' };
+			if (!idx) stub.group = 'Users';
+			exclude_items.push(stub);
+		} );
+		app.api_keys.forEach( function(key, idx) {
+			var stub = { id: key.id, title: key.title, icon: key.icon || 'key' };
+			if (!idx) stub.group = 'API Keys';
+			exclude_items.push(stub);
+		} );
+		
+		html += this.getFormRow({
+			id: 'd_et_exclusions',
+			label: 'Exclude Users / Keys:',
+			content: this.getFormMenuMulti({
+				id: 'fe_et_exclusions',
+				title: 'Select Users or Keys',
+				placeholder: 'None',
+				options: exclude_items,
+				values: trigger.exclusions || [],
+				'data-hold': 1,
+				'data-private': 1
+				// 'data-shrinkwrap': 1
+			}),
+			caption: 'Optionally exclude activities that were initiated from specific users and/or API keys.'
+		});
+		
 		// catch-up
 		html += this.getFormRow({
 			id: 'd_et_catchup_desc',
@@ -3789,6 +3818,7 @@ Page.Events = class Events extends Page.PageUtils {
 					// activities
 					trigger.activities = $('#fe_et_activities').val();
 					if (!trigger.activities.length) return app.badField('#fe_et_activities', "Please select one or more activity types for the trigger.");
+					trigger.exclusions = $('#fe_et_exclusions').val();
 				break;
 				
 				case 'catchup':
@@ -4010,7 +4040,7 @@ Page.Events = class Events extends Page.PageUtils {
 				break;
 				
 				case 'activity':
-					$('#d_et_activities').show();
+					$('#d_et_activities, #d_et_exclusions').show();
 					$('#d_et_tags').show();
 					$('#d_et_params').show();
 				break;
@@ -4087,7 +4117,7 @@ Page.Events = class Events extends Page.PageUtils {
 		}); // type change
 		
 		SingleSelect.init( $('#fe_et_type, #fe_et_tz, #fe_et_plugin') );
-		MultiSelect.init( $('#fe_et_years, #fe_et_months, #fe_et_weekdays, #fe_et_days, #fe_et_hours, #fe_et_minutes, #fe_et_seconds, #fe_et_tags, #fe_et_activities') );
+		MultiSelect.init( $('#fe_et_years, #fe_et_months, #fe_et_weekdays, #fe_et_days, #fe_et_hours, #fe_et_minutes, #fe_et_seconds, #fe_et_tags, #fe_et_activities, #fe_et_exclusions') );
 		RelativeTime.init( $('#fe_et_interval') );
 		KeySelect.init( '#fe_et_keyboard_keys' );
 		// this.updateAddRemoveMe('#fe_eja_email');
