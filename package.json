@@ -32,7 +32,8 @@
 	],
 	"overrides": {
 		"lodash": "4.18.1",
-		"nanoid": "3.3.18"
+		"nanoid": "3.3.18",
+		"basic-ftp": "6.2.1"
 	},
 	"dependencies": {
 		"@mdi/font": "7.4.47",
