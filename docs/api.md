@@ -6922,6 +6922,120 @@ Notes:
 
 
 
+## Extensions
+
+Extension APIs install, update, and remove [system extensions](ext.md) published through the xyOps Marketplace.  All three require the [admin](privileges.md#admin) privilege and a valid user session or API Key, and must be called on the primary conductor.
+
+The `id` is the Marketplace ID, such as `myorg/xyext-example`, rather than the NPM package name (`@myorg/xyext-example`) or runtime extension ID (`myorg-xyext-example`).  The product must be listed in the Marketplace with `type: "extension"`.  Installation and update versions must also appear in the product's published `versions` array.
+
+These operations run NPM in the background as internal maintenance jobs.  The initial response uses the [Standard Response Format](#standard-response-format) and contains only `{ "code": 0 }` on success.  This means the operation was accepted, not that installation or removal has finished.  Use [get_internal_jobs](#get_internal_jobs) to view running jobs, and check the completed report on the "**Activity**" tab for the outcome and NPM output.  The report is also emailed to the initiating administrator when an email address and working mail configuration are available.
+
+Extensions are loaded when a conductor becomes primary.  Changing their installed packages does not reload the running code.  Set `restart` to `true` to restart the primary conductor after the NPM operation succeeds; the Marketplace UI always requests this restart.  If omitted or `false`, the operation does not request a restart, and the running extension code remains unchanged until the conductor is restarted.  Successful package changes are also synchronized to peer conductors.
+
+If another internal maintenance job is already running, these APIs return an error instead of starting an extension operation.
+
+### create_extension
+
+```
+POST /api/app/create_extension/v1
+```
+
+Install an approved Marketplace extension at a specific version.  Send as HTTP POST with a JSON body.
+
+Parameters:
+
+| Property Name | Type | Description |
+|---------------|------|-------------|
+| `id` | String | **(Required)** The extension's Marketplace ID, such as `myorg/xyext-example`. |
+| `version` | String | **(Required)** An exact listed release tag in `vMAJOR.MINOR.PATCH` format, such as `v1.0.0`.  Version ranges, `latest`, and prerelease suffixes are not supported. |
+| `restart` | Boolean | Restart the primary conductor after successful installation.  Defaults to `false`. |
+
+Example request:
+
+```json
+{
+	"id": "myorg/xyext-example",
+	"version": "v1.0.0",
+	"restart": true
+}
+```
+
+Example response:
+
+```json
+{ "code": 0 }
+```
+
+xyOps registers the exact NPM version in `data/extensions/package.json` and installs the package under `data/extensions/node_modules/@myorg/xyext-example`.  This endpoint installs Marketplace extensions, so an arbitrary NPM package cannot be installed by supplying its name.
+
+### update_extension
+
+```
+POST /api/app/update_extension/v1
+```
+
+Install another approved version of an extension, typically to upgrade an existing installation.  This uses the same installation mechanism as [create_extension](#create_extension).  Send as HTTP POST with a JSON body.
+
+Parameters:
+
+| Property Name | Type | Description |
+|---------------|------|-------------|
+| `id` | String | **(Required)** The extension's Marketplace ID, such as `myorg/xyext-example`. |
+| `version` | String | **(Required)** The exact listed release tag to install, such as `v1.0.1`.  Use `vMAJOR.MINOR.PATCH` format; version ranges, `latest`, and prerelease suffixes are not supported. |
+| `restart` | Boolean | Restart the primary conductor after the update succeeds.  Defaults to `false`. |
+
+Example request:
+
+```json
+{
+	"id": "myorg/xyext-example",
+	"version": "v1.0.1",
+	"restart": true
+}
+```
+
+Example response:
+
+```json
+{ "code": 0 }
+```
+
+The requested version must be available in the Marketplace listing and published to NPM.  The update runs in the background, and the new code is loaded after the primary conductor restarts.
+
+### delete_extension
+
+```
+POST /api/app/delete_extension/v1
+```
+
+Remove an extension's installed package registration and run NPM to apply the removal.  Send as HTTP POST with a JSON body.
+
+Parameters:
+
+| Property Name | Type | Description |
+|---------------|------|-------------|
+| `id` | String | **(Required)** The extension's Marketplace ID, such as `myorg/xyext-example`.  The product must still be listed as an extension in the Marketplace. |
+| `restart` | Boolean | Restart the primary conductor after removal succeeds.  Defaults to `false`. |
+
+Example request:
+
+```json
+{
+	"id": "myorg/xyext-example",
+	"restart": true
+}
+```
+
+Example response:
+
+```json
+{ "code": 0 }
+```
+
+No `version` parameter is required.  The extension remains loaded in the running conductor until it restarts.  This operation removes the package registration; it does not delete custom configuration or application data created by the extension.
+
+
+
 ## Miscellaneous
 
 ### ping

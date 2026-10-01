@@ -42,10 +42,10 @@ Welcome to the xyOps documentation. xyOps is a job scheduler, workflow engine, a
 ## Plugins & Integrations
 
 - **[Plugins](plugins.md)**: Extend xyOps in any language; event and monitor plugin APIs, parameters, and I/O.
+- **[Extensions](ext.md)**: Develop and publish your own xyOps system extensions, to add new app features.
 - **[Marketplace](marketplace.md)**: Publish and discover plugins; packaging, hosting, and requirements.
 - **[Web Hooks](webhooks.md)**: Outbound HTTP requests from jobs and alerts with templated headers and bodies.
 - **[System Hooks](syshooks.md)**: Run custom actions in response to global activity across xyOps.
-- **[Extensions](ext.md)**: Develop and publish your own system extensions, to add new app features.
 
 ## API & Data
 
