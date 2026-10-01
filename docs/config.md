@@ -218,6 +218,21 @@ This regex string limits which filenames are scanned by the file search APIs (de
 
 This array defines built-in metrics to collect (defaults include CPU, memory, disk, and network presets).  These are displayed on server detail pages for real-time monitoring.
 
+## extensions
+<!-- Title: Extension Configuration -->
+
+Use this object to configure any installed system extensions.  Each installed extension can have its own sub-object, keyed by it's Extension ID.
+
+Example:
+
+```json
+{
+	"pixlcore-xyext-test": {
+		"foo": "bar"
+	}
+}
+```
+
 <!-- Group: Email Settings -->
 
 ## email_from
