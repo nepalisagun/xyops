@@ -3421,14 +3421,14 @@ Page.Events = class Events extends Page.PageUtils {
 		
 		// activity exclusions
 		var exclude_items = [];
-		app.users.forEach( function(user, idx) {
-			var stub = { id: user.username, title: user.full_name, icon: user.icon || 'account' };
-			if (!idx) stub.group = 'Users';
-			exclude_items.push(stub);
-		} );
 		app.api_keys.forEach( function(key, idx) {
 			var stub = { id: key.id, title: key.title, icon: key.icon || 'key' };
 			if (!idx) stub.group = 'API Keys';
+			exclude_items.push(stub);
+		} );
+		app.users.forEach( function(user, idx) {
+			var stub = { id: user.username, title: user.full_name, icon: user.icon || 'account' };
+			if (!idx) stub.group = 'Users';
 			exclude_items.push(stub);
 		} );
 		
