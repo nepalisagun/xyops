@@ -24,6 +24,10 @@ div.header, div.main {
 	padding-right: 90px;
 }
 
+#d_footer_copyright a {
+	color: var(--icon-color) !important;
+}
+
 div.header {
 	position: sticky;
 	top: 0;
