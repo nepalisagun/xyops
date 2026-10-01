@@ -174,11 +174,16 @@ app.comm = {
 					Debug.trace('user', "Software version mismatch: " + data.version + " != " + app.version);
 					this.forceVersionRefresh(data);
 				}
-				if (data.extChecksum && app.extChecksum && (data.extChecksum != app.extChecksum)) {
+				else if (data.extChecksum && app.extChecksum && (data.extChecksum != app.extChecksum)) {
 					// extensions were changed, so we need a refresh
 					Debug.trace('user', "Extension checksum mismatch: " + data.extChecksum + " != " + app.extChecksum);
 					this.forceExtensionRefresh(data);
 				}
+				
+				// notify all extensions that user is logged in, authed, and websocketed
+				(app.extensions || []).forEach( ext => {
+					if (ext.obj && ext.obj.handleLogin) ext.obj.handleLogin(app.user);
+				} );
 			break;
 			
 			case 'logout':
@@ -232,6 +237,15 @@ app.comm = {
 					$P('Tickets').updateAllPresetCounts();
 					if ($P().onTicketsChanged) $P().onTicketsChanged();
 				}, Math.random() * 1000 );
+			break;
+			
+			case 'ext_msg':
+				// message for specific extension
+				var ext_id = data.id;
+				var ext = find_object( app.extensions || [], { id: ext_id } );
+				if (!ext || !ext.obj || !ext.obj.handleComm) return;
+				Debug.trace('comm', "Sending message to extension: " + ext_id);
+				ext.obj.handleComm(socket, data.data);
 			break;
 			
 			// more commands here
