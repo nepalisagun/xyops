@@ -4,7 +4,7 @@
 
 **xyOps is the next generation of Cronicle:** a complete, self-hosted platform for job scheduling, visual workflow automation, server monitoring, alerting, and incident response.
 
-[Website](https://xyops.io/) | [Install](https://docs.xyops.io/hosting) | [Documentation](https://docs.xyops.io/) | [Cronicle migration](https://docs.xyops.io/cronicle) | [Plugin Marketplace](https://marketplace.xyops.io/) | [Support](https://docs.xyops.io/support)
+[Website](https://xyops.io/) | [Install](https://docs.xyops.io/hosting) | [Documentation](https://docs.xyops.io/) | [CLI](https://github.com/pixlcore/xycli) | [Cronicle migration](https://docs.xyops.io/cronicle) | [Plugin Marketplace](https://marketplace.xyops.io/) | [Support](https://docs.xyops.io/support)
 
 [![xyOps workflow editor](https://pixlcore.com/images/blog/xyops/workflow-edit.webp)](https://xyops.io/)
 
@@ -66,6 +66,22 @@ Open [http://localhost:5522/](http://localhost:5522/) and sign in with:
 This trial is intentionally disposable. Stop it with `docker stop xyops-try`, and Docker will remove the container and its data. Change `TZ` if you want the trial to use a different timezone.
 
 For a persistent or production deployment, continue with the [Self-Hosting Guide](https://docs.xyops.io/hosting).
+
+## xyOps from your terminal
+
+Prefer working from the command line? [xyCLI](https://github.com/pixlcore/xycli) brings xyOps to your terminal with colorful dashboards, monitoring charts, and readable job reports.
+
+Launch jobs and workflows, follow live output, investigate failures, inspect server health, and sync your automation definitions with local files you can version in Git.
+
+[![xyCLI terminal dashboard](https://pixlcore.com/software/xycli/screenshots/dashboard.png)](https://github.com/pixlcore/xycli)
+
+Install with npm:
+
+```sh
+npm install -g @pixlcore/xycli
+```
+
+[Get started with xyCLI](https://github.com/pixlcore/xycli#getting-started) | [Screenshot gallery](https://github.com/pixlcore/xycli/blob/main/docs/screenshots.md)
 
 ## Open source without feature gates
 
