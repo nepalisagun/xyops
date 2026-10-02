@@ -1,5 +1,22 @@
 # xyOps Changelog
 
+## Version v1.1.4
+
+> October 2, 2026
+
+- [`64ee3703`](https://github.com/pixlcore/xyops/commit/64ee3703cd7b750bb699051c5f697c7f5a43c7d4): Version 1.1.4
+- [`dfb81921`](https://github.com/pixlcore/xyops/commit/dfb81921ad28103703be2645517e0705ffaf01c7): Bug Fix: Extension client code was not being loaded on magic link form landing page.
+- [`398f8c6c`](https://github.com/pixlcore/xyops/commit/398f8c6c7bd249e0ac2fdd1dd0f047230504edcd): Dep: Override "basic-ftp" (sub-sub-sub-sub-dep of pixl-request) to v6.2.1 for vuln fix, that isn't fixed in any of the parents.
+- [`92d63614`](https://github.com/pixlcore/xyops/commit/92d63614225d9de8f61f62624073c529734ae9fc): Doc: README: Add section about xyCLI
+- [`0be4e069`](https://github.com/pixlcore/xyops/commit/0be4e069c14be6aee7a4351f5ae1c9205a4fc690): Doc: API: Add docs for new extension APIs
+- [`caf72b5a`](https://github.com/pixlcore/xyops/commit/caf72b5ae5b31bea1a56879c5462b9110308d57a): Feature: Add user-editable configuration for extensions, with live reload.
+- [`6e005db9`](https://github.com/pixlcore/xyops/commit/6e005db9c1f9b978c519aadf4fe6ca453aa7410a): Tweak: List API keys first in system activity trigger exclusions menu.
+- [`5d1a5cac`](https://github.com/pixlcore/xyops/commit/5d1a5cac5b89b51249ba1d5504f3252ba5231bda): Feature: Extend extension client websocket APIs, for two-way messaging.
+- [`62a406d6`](https://github.com/pixlcore/xyops/commit/62a406d69557e15bb42fc526601608c754be6206): Doc: Add system extension development and publishing guide.
+- [`44dc5403`](https://github.com/pixlcore/xyops/commit/44dc5403600d4661e5d8b8bee0b1092a06ab9ab8): CSS: Tweak color of links in footer.
+- [`c9c26cc7`](https://github.com/pixlcore/xyops/commit/c9c26cc7fdb38c0cdff5b62dcd0370ea23122e9b): Feature: System Activity triggers can now include an exclusion list, for users and/or API keys.
+- [`815d67af`](https://github.com/pixlcore/xyops/commit/815d67af3962e34b10fb6def6eaf866fe3a4303f): Bug Fix: API Keys were not sorted alphabetically like the other lists.
+
 ## Version v1.1.3
 
 > September 30, 2026
