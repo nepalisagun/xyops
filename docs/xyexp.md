@@ -43,6 +43,30 @@ Be careful not to use dot notation with a hyphenated property name.  JEXL interp
 {{ params['a-number'] }}
 ```
 
+## Disabling Macro Expansion
+
+If your script or template uses `{{ ... }}` syntax for another tool, you can include the special marker `XY_NO_EXP` anywhere to disable xyOps macro expansion for the entire string.  This lets you keep your existing templates without escaping each macro individually.
+
+For example, add a comment to a Shell Plugin script to preserve Docker's format templates:
+
+```sh
+#!/bin/sh
+
+# XY_NO_EXP
+docker ps -a --format '{{.ID}} {{.Names}}'
+```
+
+Use the comment syntax appropriate for your language.  For JavaScript, you can use `// XY_NO_EXP` or `/* XY_NO_EXP */`:
+
+```js
+// XY_NO_EXP
+const template = 'Hello {{name}}!';
+```
+
+The marker is case-sensitive and must appear as a standalone token.  For example, `xy_no_exp` and `XY_NO_EXP_SUFFIX` do not activate the bypass.  xyOps recognizes the marker anywhere in the input text, including comments and quoted strings, and preserves the full string exactly as supplied, including the marker itself.
+
+Other string templates that support macro expansion, such as Web Hook messages and email templates, can also use this marker.  Direct expressions, such as Monitor Expressions and Alert Trigger Expressions, continue to be evaluated normally.
+
 ## Custom Functions
 
 In addition to the standard JEXL operators, the following custom functions are available to use inside expressions:
