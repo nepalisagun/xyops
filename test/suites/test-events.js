@@ -320,17 +320,28 @@ exports.tests = [
 	},
 
 	async function test_api_event_rejects_reserved_job_override(test) {
-		// reserved _xy_override_* params must not be allowed to alter launch context
+		// Reserved _xy_override_* params cannot alter launch context or force a
+		// server, regardless of account privileges. Validation is shared by APIs.
 		let event = Tools.findObject( this.xy.events, { id: this.event_id } );
-		let error = null;
-		let valid = this.xy.requireValidEventData(
-			Tools.mergeHashes(event, { params: { _xy_override_uid: '0' } }),
-			function(data) { error = data; }
-		);
-
-		assert.ok( valid === false, "reserved job override should fail validation" );
-		assert.ok( error && error.code === 'api', "expected api validation error" );
-		assert.ok( error.description.match(/reserved/), "expected reserved-key error" );
+		for (var key of ['_xy_override_uid', '_xy_override_server']) {
+			let error = null;
+			let valid = this.xy.requireValidEventData(
+				Tools.mergeHashes(event, { params: { [key]: '0' } }),
+				function(data) { error = data; }
+			);
+			
+			assert.ok( valid === false, "reserved job override should fail validation" );
+			assert.ok( error && error.code === 'api', "expected api validation error" );
+			assert.ok( error.description.match(/reserved/), "expected reserved-key error" );
+		}
+		
+		for (var api of ['create_event', 'update_event', 'run_event']) {
+			let { data } = await this.request.json( this.api_url + '/app/' + api + '/v1', {
+				...event, params: { _xy_override_server: 'outside_server' }
+			});
+			assert.equal( data.code, 'api', "administrator cannot supply reserved server parameter to " + api );
+			assert.ok( data.description.match(/reserved/), "API reports the reserved parameter" );
+		}
 	},
 
 	async function test_api_update_event_missing_id(test) {

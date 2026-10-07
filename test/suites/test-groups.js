@@ -115,6 +115,53 @@ exports.tests = [
 		assert.ok( api.requireTargetPrivilege(user, ['allowed', 'other_group'], function() {}), "server membership checks still require only one allowed group" );
 	},
 	
+	async function test_runtime_target_privileges(test) {
+		// Cover effective group limits and admin bypasses, including roles.
+		// These independent fixtures do not change any stored users or plugins.
+		var api = new API();
+		api.roles = [
+			{ id: 'limited_role', enabled: true, groups: ['allowed'] },
+			{ id: 'admin_role', enabled: true, privileges: { admin: true } }
+		];
+		api.plugins = [{ id: 'dynamic_plugin', params: [{ id: '_xy_override_targets', value: '' }] }];
+		api.servers = {
+			shared_server: { groups: ['allowed', 'other'] },
+			outside_server: { groups: ['other'] }
+		};
+		api.doError = function(code, description, callback) { callback({ code, description }); return false; };
+		
+		var users = [
+			{ privileges: {}, groups: ['allowed'] },
+			{ privileges: {}, roles: ['limited_role'] }
+		];
+		var blocked = [
+			{ server: 'shared_server' },
+			{ params: { _xy_override_targets: 'allowed' } },
+			{ params: { _xy_override_targets: '' } },
+			{ fields: [{ id: '_xy_override_targets', value: '' }] },
+			{ triggers: [{ params: { _xy_override_targets: 'allowed' } }] },
+			{ plugin: 'dynamic_plugin' }
+		];
+		for (var user of users) {
+			for (var data of blocked) {
+				var errors = [];
+				assert.ok( !api.requireRuntimeTargetPrivileges(user, data, response => errors.push(response)), "group-limited account cannot use runtime targeting" );
+				assert.equal( errors.length, 1, "denial sends exactly one response" );
+				assert.equal( errors[0].code, 'access', "runtime targeting returns an access error" );
+			}
+			assert.ok( api.requireRuntimeTargetPrivileges(user, { params: { _xy_override_algo: 'random' } }, function() {}), "other scheduling overrides remain available" );
+			assert.ok( api.requireRuntimeTargetPrivileges(user, { server: 'shared_server' }, function() {}, true), "scheduler-assigned shared server remains accessible" );
+			assert.ok( !api.requireRuntimeTargetPrivileges(user, { server: 'outside_server' }, function() {}, true), "an existing outside assignment is denied" );
+		}
+		for (var user of [
+			{ privileges: { admin: true }, groups: ['allowed'] },
+			{ privileges: {}, roles: ['admin_role'], groups: ['allowed'] },
+			{ privileges: {}, categories: ['general'], groups: [] }
+		]) {
+			for (var data of blocked) assert.ok( api.requireRuntimeTargetPrivileges(user, data, function() {}), "administrator and group-unrestricted accounts retain runtime targeting" );
+		}
+	},
+	
 	async function test_api_group_limited_execution_targets(test) {
 		// Exercise the public APIs with a restricted key and a dedicated Event.
 		// The repository harness runs jobs on its mock satellite, not a live host.
@@ -129,6 +176,7 @@ exports.tests = [
 		var options = { headers: { 'X-Session-ID': '', 'X-API-Key': created_key.data.plain_key } };
 		var event_id = '';
 		var job_id = '';
+		var suspended_job_id = '';
 		var event = {
 			title: 'Unit Test Target Access Event', enabled: true,
 			category: 'general', plugin: 'shellplug', algo: 'random', targets: ['main'],
@@ -148,6 +196,62 @@ exports.tests = [
 			assert.equal( delayed.data.code, 0, "created delayed job fixture" );
 			job_id = delayed.data.id;
 			assert.equal( this.xy.activeJobs[job_id].state, 'start_delay', "fixture remains on the conductor before dispatch" );
+			var original_params = Tools.copyHash(this.xy.activeJobs[job_id].params, true);
+			
+			// Runtime targeting must be rejected even if it names the allowed group.
+			// Check incoming values, hidden field defaults, and scheduled parameters.
+			for (var override of [
+				{ server: 'outside_server' },
+				{ params: { ...event.params, _xy_override_targets: 'main' } },
+				{ fields: [{ id: '_xy_override_targets', type: 'hidden', value: '' }] },
+				{ triggers: [{ type: 'manual', enabled: true, params: { _xy_override_targets: 'main' } }] }
+			]) {
+				for (var api of ['create_event', 'update_event', 'run_event', 'update_active_job']) {
+					var payload = (api == 'create_event') ? { ...event, ...override } : { id: (api == 'update_active_job') ? job_id : event_id, ...override };
+					let denied = await this.request.json( this.api_url + '/app/' + api + '/v1', payload, options );
+					assert.equal( denied.data.code, 'access', "runtime targeting is denied by " + api );
+				}
+			}
+			for (var payload of [
+				{ id: event_id, 'params/_xy_override_targets': 'outside_server' },
+				{ id: event_id, json: JSON.stringify({ params: { _xy_override_targets: 'outside_server' } }) }
+			]) {
+				let denied = await this.request.json( this.api_url + '/app/run_event/v1', payload, options );
+				assert.equal( denied.data.code, 'access', "legacy and JSON run parameters cannot bypass runtime checks" );
+			}
+			assert.equal( this.xy.findActiveJobs({ event: event_id }).length, 1, "denied runtime requests create no additional jobs" );
+			assert.deepEqual( this.xy.activeJobs[job_id].params, original_params, "denied updates preserve live parameters" );
+			
+			// An administrator can still save the feature. Restricted accounts cannot
+			// edit or run that Event just by omitting its inherited override.
+			let dynamic = await this.request.json( this.api_url + '/app/update_event/v1', { id: event_id, params: { ...event.params, _xy_override_targets: 'main' } } );
+			assert.equal( dynamic.data.code, 0, "administrator retains runtime targeting" );
+			for (var api of ['update_event', 'run_event']) {
+				let denied = await this.request.json( this.api_url + '/app/' + api + '/v1', { id: event_id }, options );
+				assert.equal( denied.data.code, 'access', "inherited runtime targeting blocks " + api );
+			}
+			await this.request.json( this.api_url + '/app/update_event/v1', { id: event_id, params: event.params } );
+			
+			// Delayed and suspended job operations must also check saved and injected
+			// parameters before they change any job state.
+			let dynamic_job = await this.request.json( this.api_url + '/app/update_active_job/v1', { id: job_id, params: { ...event.params, _xy_override_targets: 'main' } } );
+			assert.equal( dynamic_job.data.code, 0, "administrator can update live runtime parameters" );
+			var until = this.xy.activeJobs[job_id].until;
+			for (var api of ['update_active_job', 'job_skip_delay', 'resume_job']) {
+				let denied = await this.request.json( this.api_url + '/app/' + api + '/v1', { id: job_id }, options );
+				assert.equal( denied.data.code, 'access', "saved runtime targeting blocks " + api );
+			}
+			assert.equal( this.xy.activeJobs[job_id].until, until, "denied release preserves the job delay" );
+			await this.request.json( this.api_url + '/app/update_active_job/v1', { id: job_id, params: event.params } );
+			
+			// A saved server may have been forced by an administrator. It cannot
+			// authorize restricted operations just because job.targets is allowed.
+			await this.request.json( this.api_url + '/app/update_active_job/v1', { id: job_id, server: 'outside_server' } );
+			for (var api of ['update_active_job', 'job_skip_delay', 'resume_job']) {
+				let denied = await this.request.json( this.api_url + '/app/' + api + '/v1', { id: job_id }, options );
+				assert.equal( denied.data.code, 'access', "an existing outside server blocks " + api );
+			}
+			await this.request.json( this.api_url + '/app/update_active_job/v1', { id: job_id, server: '' } );
 			
 			for (var targets of [ ['main', 'forbidden_group'], ['main', 'outside_server'] ]) {
 				let created = await this.request.json( this.api_url + '/app/create_event/v1', { ...event, targets }, options );
@@ -197,13 +301,48 @@ exports.tests = [
 			let ran = await this.request.json( this.api_url + '/app/run_event/v1/wait', { id: event_id, targets: ['main'] }, options );
 			assert.equal( ran.data.code, 0, "allowed manual run succeeds" );
 			assert.equal( ran.data.job.code, 0, "allowed job completes on the mock satellite" );
+			
+			// Exercise resume injections on an actual start-suspended job, including
+			// its scheduler-assigned server. Rejections must leave it suspended.
+			let suspended = await this.request.json( this.api_url + '/app/run_event/v1', {
+				id: event_id, actions: [{ enabled: true, condition: 'start', type: 'suspend', users: [], email: '', web_hook: '', text: '' }]
+			}, options );
+			assert.equal( suspended.data.code, 0, "created start-suspended job" );
+			suspended_job_id = suspended.data.id;
+			for (var idx = 0; idx < 50 && !this.xy.activeJobs[suspended_job_id]?.suspended; idx++) await new Promise(resolve => setTimeout(resolve, 100));
+			assert.ok( this.xy.activeJobs[suspended_job_id]?.suspended, "job reaches start suspension before dispatch" );
+			var suspended_params = Tools.copyHash(this.xy.activeJobs[suspended_job_id].params, true);
+			for (var key of ['_xy_override_targets', '_xy_override_server']) {
+				let denied = await this.request.json( this.api_url + '/app/resume_job/v1', { id: suspended_job_id, params: { [key]: 'outside_server' } }, options );
+				assert.equal( denied.data.code, (key == '_xy_override_targets') ? 'access' : 'api', "resume injections cannot retarget the job" );
+				assert.ok( this.xy.activeJobs[suspended_job_id].suspended, "denied resume leaves the job suspended" );
+				assert.deepEqual( this.xy.activeJobs[suspended_job_id].params, suspended_params, "denied resume preserves job parameters" );
+			}
+			let denied_admin = await this.request.json( this.api_url + '/app/resume_job/v1', { id: suspended_job_id, params: { _xy_override_server: 'outside_server' } } );
+			assert.equal( denied_admin.data.code, 'api', "reserved server parameter is also rejected for administrators" );
+			assert.ok( this.xy.activeJobs[suspended_job_id].suspended, "denied administrator resume leaves the job suspended" );
+			let resumed = await this.request.json( this.api_url + '/app/resume_job/v1', { id: suspended_job_id, params: { ordinary_param: 'allowed' } }, options );
+			assert.equal( resumed.data.code, 0, "ordinary resume with an assigned allowed server still succeeds" );
+			await new Promise( (resolve, reject) => this.xy.waitForJob(suspended_job_id, function(err) { err ? reject(err) : resolve(); }) );
+			
+			// Positive runs exercise hydration and selection on the mock satellite.
+			// Both admins and non-admin accounts without group limits keep overrides.
+			var runtime_run = { id: event_id, params: { _xy_override_targets: 'main' } };
+			let admin_run = await this.request.json( this.api_url + '/app/run_event/v1/wait', runtime_run );
+			assert.equal( admin_run.data.code, 0, "administrator can run with runtime targeting" );
+			assert.equal( admin_run.data.job.code, 0, "administrator runtime-targeted job completes" );
+			await this.request.json( this.api_url + '/app/update_api_key/v1', { id: key_id, groups: [] } );
+			let unrestricted_run = await this.request.json( this.api_url + '/app/run_event/v1/wait', runtime_run, options );
+			assert.equal( unrestricted_run.data.code, 0, "group-unrestricted account can run with runtime targeting" );
+			assert.equal( unrestricted_run.data.job.code, 0, "unrestricted runtime-targeted job completes" );
 		}
 		finally {
 			// Clean up with the administrator session, including the delayed job
 			// if an assertion failed before the positive run completed.
-			if (job_id && this.xy.activeJobs[job_id]) {
-				await this.request.json( this.api_url + '/app/abort_job/v1', { id: job_id } );
-				await new Promise( (resolve, reject) => this.xy.waitForJob(job_id, function(err) { err ? reject(err) : resolve(); }) );
+			for (var id of [job_id, suspended_job_id]) {
+				if (!id || !this.xy.activeJobs[id]) continue;
+				await this.request.json( this.api_url + '/app/abort_job/v1', { id } );
+				await new Promise( (resolve, reject) => this.xy.waitForJob(id, function(err) { err ? reject(err) : resolve(); }) );
 			}
 			if (event_id) await this.request.json( this.api_url + '/app/delete_event/v1', { id: event_id } );
 			await this.request.json( this.api_url + '/app/delete_api_key/v1', { id: key_id } );
@@ -224,7 +363,9 @@ exports.tests = [
 		this.xy.events = original_events.concat([
 			{ id: 'allowed_event', type: 'normal', category: 'allowed_cat', targets: ['allowed_group'] },
 			{ id: 'mixed_event', type: 'normal', category: 'allowed_cat', targets: ['allowed_group', 'forbidden_group'] },
+			{ id: 'dynamic_event', type: 'normal', category: 'allowed_cat', targets: ['allowed_group'], params: { _xy_override_targets: 'allowed_group' } },
 			workflow('mixed_workflow', [eventNode('mixed_event')]),
+			workflow('dynamic_workflow', [eventNode('dynamic_event')]),
 			workflow('nested_workflow', [eventNode('allowed_event'), eventNode('cyclic_workflow')]),
 			workflow('cyclic_workflow', [eventNode('nested_workflow')]),
 			workflow('forbidden_workflow', [
@@ -243,6 +384,20 @@ exports.tests = [
 				nodes: [eventNode('allowed_event', ['forbidden_group'])]
 			}, function(data) { error = data; });
 			assert.ok( !denied && error, "forbidden Event Node target override is rejected" );
+			
+			// Runtime targeting checks use the same recursive walk, covering saved
+			// events, node overrides, ad-hoc jobs, and referenced sub-workflows.
+			for (var nodes of [
+				[eventNode('dynamic_event')],
+				[eventNode('dynamic_workflow')],
+				[{ type: 'event', data: { event: 'allowed_event', params: { _xy_override_targets: 'allowed_group' } } }],
+				[{ type: 'job', data: { category: 'allowed_cat', targets: ['allowed_group'], params: { _xy_override_targets: 'allowed_group' } } }],
+				[{ type: 'job', data: { category: 'allowed_cat', targets: ['allowed_group'], server: 'outside_server' } }]
+			]) {
+				error = null;
+				denied = this.xy.requireWorkflowPrivileges(user, { nodes }, function(data) { error = data; });
+				assert.ok( !denied && error && (error.code == 'access'), "runtime targeting in workflow nodes is rejected" );
+			}
 			
 			// One allowed target must not authorize other targets on the same
 			// node, whether supplied by an override or a nested saved Event.

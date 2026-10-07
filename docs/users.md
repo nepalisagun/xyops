@@ -64,6 +64,7 @@ Users can be limited to specific event categories and/or server groups:
 
 - Categories: If a user/role defines any `categories`, the user can only see and operate on events in those categories. With none defined, all categories are allowed (unless otherwise prohibited by privileges).
 - Groups: If a user/role defines any `groups`, each explicitly listed target must be allowed when creating, updating, or manually running events, changing live job targets, releasing delayed jobs, or resuming suspended jobs. Event and job reads still require only one matching target, and access to a server requires only one matching group membership. With no group restrictions defined, all groups are allowed (subject to privileges). Execution target checks compare IDs directly; they do not resolve individual server IDs to group memberships.
+- Runtime targeting: Group-limited accounts cannot use `_xy_override_targets` or a forced `server`, even for an allowed destination. This includes saved events, workflow nodes, user fields, trigger parameters, and plugin parameter defaults. Administrators and accounts without group restrictions can continue using these features. The `_xy_override_server` parameter is reserved and cannot be used by any account.
 - Admin bypass: Administrators are not limited by category/group restrictions.
 
 Typical scenarios:
