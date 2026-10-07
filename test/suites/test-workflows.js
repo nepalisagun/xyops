@@ -53,6 +53,58 @@ function getWorkflow(name) {
 
 exports.tests = [
 	
+	async function test_workflow_split_empty_continue(test) {
+		// Empty lists may continue only when the Split does not require successful jobs.
+		const cases = [
+			{ name: 'continue zero', percentage: 0, continues: true },
+			{ name: 'default continue zero', continues: true },
+			{ name: 'positive threshold', percentage: 50 },
+			{ name: 'all success threshold', percentage: 100 },
+			{ name: 'previous successes', percentage: 100, previous: true },
+			{ name: 'filtered empty list', percentage: 0, filter: true, continues: true },
+			{ name: 'filtered positive threshold', percentage: 100, filter: true },
+			{ name: 'unmanaged positive threshold', percentage: 100, unmanaged: true }
+		];
+		
+		cases.forEach( function(item) {
+			const engine = new Workflows();
+			const node = { id: 'split', type: 'controller', data: {
+				controller: 'split', split: 'data.items', continue: item.percentage,
+				filter: item.filter ? 'item.keep' : ''
+			} };
+			const worker = { id: 'worker', type: item.unmanaged ? 'controller' : 'job' };
+			const state = {};
+			const job = { id: 'parent', workflow: {
+				nodes: [node, worker, { id: 'final', type: 'job' }],
+				state: { split: state }, jobs: {},
+				connections: [
+					{ id: 'splitWorker', source: 'split', dest: 'worker' },
+					{ id: 'workerContinue', source: 'worker', dest: 'final', condition: 'continue' }
+				]
+			} };
+			
+			// A previous activation's successful jobs must not satisfy an empty activation.
+			if (item.previous) job.workflow.jobs.worker = [{ id: 'previous', code: 0 }];
+			engine.jobDetails = { parent: { workflowData: {} } };
+			engine.logWorkflow = function() {};
+			const launched = [];
+			engine.runWorkflowNode = function(opts) { launched.push(opts.node.id); };
+			
+			engine.runWFController_split({ job, node, overrides: { input: {
+				data: { items: item.filter ? [{ keep: false }] : [] }
+			} } });
+			
+			assert.deepEqual(launched, item.continues ? ['final'] : [], item.name + ': correct continuation');
+			assert.equal(!!state.error, !item.continues, item.name + ': preserves errors at positive thresholds');
+			if (item.continues) {
+				assert.equal(state.active, false, item.name + ': Split is inactive');
+				assert.equal(state.max, 0, item.name + ': no jobs expected');
+				assert.equal(state.count, 0, item.name + ': no jobs completed');
+				assert.ok(state.completed, item.name + ': Split is completed');
+			}
+		} );
+	},
+	
 	async function test_workflow_join_percentage(test) {
 		// Exercise Join's output directly, without launching downstream jobs.
 		const cases = [
