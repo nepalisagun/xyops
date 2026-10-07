@@ -112,7 +112,7 @@ For batched splits, each job receives an array in `data.items` (note: plural).  
 
 The Join controller waits for multiple incoming flows to finish, then passes a combined result to the next step. You can wire multiple inputs into a Join; it initializes when the first input arrives and completes after all of its inputs have fired.
 
-The joining process works as follows: all input job data is appended to an `items` array, and also separately all job data is shallow-merged into a `combined` object, which is passed to the next job (via continue condition).  For e.g. if 3 connected input jobs all output this data: `{"foo":1234}` then the final joined data that is passed along would look like this:
+The joining process works as follows: all input job data is appended to an `items` array, and also separately all job data is shallow-merged into a `combined` object, which is passed to the next job (via continue condition).  For e.g. if 3 connected input jobs all succeed and output this data: `{"foo":1234}` then the final joined data that is passed along would look like this:
 
 ```json
 {
@@ -123,9 +123,12 @@ The joining process works as follows: all input job data is appended to an `item
 	],
 	"combined": {
 		"foo": 1234
-	}
+	},
+	"percentage": 100
 }
 ```
+
+The `percentage` field is the success percentage of the collected jobs, from 0 to 100, preserving fractional values. It counts jobs across all incoming nodes, includes failed jobs even when they produce no output, and excludes superseded retry attempts. If there are no job results to collect, it is `null`. You can use `data.percentage` downstream to distinguish all jobs succeeding (`100`), some succeeding (greater than `0` and less than `100`), and none succeeding (`0`). For Split workflows, use On Continue wires into Join and set each Split's Continue Percentage to `0` to include all outcomes.
 
 Any files produced upstream are concatenated and passed along. Join requires exactly one output connection.
 
