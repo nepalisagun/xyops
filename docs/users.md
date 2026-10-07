@@ -63,7 +63,7 @@ For the complete list of privilege IDs the system recognizes, see [Privileges](p
 Users can be limited to specific event categories and/or server groups:
 
 - Categories: If a user/role defines any `categories`, the user can only see and operate on events in those categories. With none defined, all categories are allowed (unless otherwise prohibited by privileges).
-- Groups: If a user/role defines any `groups`, job targets must intersect those groups. With none defined, all groups are allowed (subject to privileges). Target checks cover groups; individual server checks are intentionally not granular.
+- Groups: If a user/role defines any `groups`, each explicitly listed target must be allowed when creating, updating, or manually running events, changing live job targets, releasing delayed jobs, or resuming suspended jobs. Event and job reads still require only one matching target, and access to a server requires only one matching group membership. With no group restrictions defined, all groups are allowed (subject to privileges). Execution target checks compare IDs directly; they do not resolve individual server IDs to group memberships.
 - Admin bypass: Administrators are not limited by category/group restrictions.
 
 Typical scenarios:
@@ -76,7 +76,7 @@ Typical scenarios:
 Server group limits are a legacy compatibility feature inherited from Cronicle. Workflows are newer and may contain nested sub-workflows, so they use a deliberately simpler read policy:
 
 - Workflow reads: Group-limited users may view workflow definitions and parent workflow jobs. Category-limited users may view them only when the workflow's top-level category is in scope. Categories and groups used by nested nodes do not affect read visibility.
-- Workflow writes and manual runs: Creating, updating, or manually running a workflow recursively checks every reachable Event Node and Job Node, including nodes in nested sub-workflows. The user must have access to the referenced categories, saved event targets, and any node-level target overrides.
+- Workflow writes and manual runs: Creating, updating, or manually running a workflow recursively checks every reachable Event Node and Job Node, including nodes in nested sub-workflows. The user must have access to the referenced categories, every saved event target, and every node-level target override.
 - Cyclic references: Recursive validation safely detects already visited sub-workflows, so cyclic workflow references do not cause an infinite loop.
 
 This keeps workflow lists and live workflow pages practical on installations with thousands of events, while still preventing limited users from creating, modifying, or manually launching work outside their assigned scope.

@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const Tools = require('pixl-tools');
+const API = require('../../lib/api.js');
 
 exports.tests = [
 
@@ -12,8 +13,8 @@ exports.tests = [
 	},
 	
 	async function test_group_limited_resource_helpers(test) {
-		// group restrictions use any-match semantics, so one shared group grants
-		// access even when the resource also belongs to other groups
+		// Reads and concrete resource access retain any-match semantics, so one
+		// shared group grants access even when the resource has other groups.
 		var cuser = {
 			privileges: {},
 			categories: [],
@@ -60,7 +61,7 @@ exports.tests = [
 		var user = { privileges: {}, roles: [], groups: ['allowed'] };
 		assert.ok( !this.xy.checkTargetPrivilege(user, ['server123']), "individual server targets alone deny access" );
 		assert.ok( !this.xy.checkTargetPrivilege(user, ['forbidden', 'server123']), "disallowed groups and servers deny access" );
-		assert.ok( this.xy.checkTargetPrivilege(user, ['allowed', 'forbidden', 'server123']), "one matching group grants access regardless of other targets" );
+		assert.ok( this.xy.checkTargetPrivilege(user, ['allowed', 'forbidden', 'server123']), "legacy read checks retain any-match target access" );
 		assert.ok( this.xy.checkTargetPrivilege(user, []), "empty workflow targets retain their existing access behavior" );
 		
 		// Empty target arrays are only valid for workflows.  This preserves the
@@ -73,6 +74,140 @@ exports.tests = [
 			targets: [],
 			workflow: { nodes: [], connections: [] }
 		}, function() {}), "workflows retain empty target arrays" );
+	},
+	
+	async function test_all_target_privileges(test) {
+		// Use a small independent account fixture to cover direct grants, role
+		// grants, and administrator bypasses without changing stored accounts.
+		var api = new API();
+		api.roles = [
+			{ id: 'target_role', enabled: true, groups: ['second_allowed'] },
+			{ id: 'admin_role', enabled: true, privileges: { admin: true } }
+		];
+		api.doError = function(code, description, callback) {
+			callback({ code, description });
+			return false;
+		};
+		
+		var user = { privileges: {}, roles: ['target_role'], groups: ['allowed'] };
+		var cases = [
+			{ targets: ['allowed'], allowed: true },
+			{ targets: ['allowed', 'second_allowed'], allowed: true },
+			{ targets: ['allowed', 'forbidden', 'server123'], allowed: false },
+			{ targets: ['forbidden', 'allowed'], allowed: false },
+			{ targets: ['allowed', 'server123'], allowed: false },
+			{ targets: [], allowed: true }
+		];
+		
+		cases.forEach( function(item) {
+			var errors = [];
+			var allowed = api.requireAllTargetPrivileges(user, item.targets, function(data) { errors.push(data); });
+			assert.equal( allowed, item.allowed, "expected execution access for targets: " + item.targets.join(', ') );
+			assert.equal( errors.length, item.allowed ? 0 : 1, "first denied target sends exactly one response" );
+			if (errors.length) assert.equal( errors[0].code, 'access', "denied execution returns an access error" );
+		});
+		
+		// The new helper inherits the existing administrator and unrestricted
+		// account bypasses, including administrator privileges from a role.
+		assert.ok( api.requireAllTargetPrivileges({ privileges: { admin: true }, groups: ['allowed'] }, ['forbidden'], function() {}), "direct administrator bypass is retained" );
+		assert.ok( api.requireAllTargetPrivileges({ privileges: {}, roles: ['admin_role'], groups: ['allowed'] }, ['forbidden'], function() {}), "role administrator bypass is retained" );
+		assert.ok( api.requireAllTargetPrivileges({ privileges: {}, groups: [] }, ['forbidden'], function() {}), "unrestricted account bypass is retained" );
+		assert.ok( api.requireTargetPrivilege(user, ['allowed', 'other_group'], function() {}), "server membership checks still require only one allowed group" );
+	},
+	
+	async function test_api_group_limited_execution_targets(test) {
+		// Exercise the public APIs with a restricted key and a dedicated Event.
+		// The repository harness runs jobs on its mock satellite, not a live host.
+		let created_key = await this.request.json( this.api_url + '/app/create_api_key/v1', {
+			title: 'Unit Test Target Access Key',
+			groups: ['main'],
+			privileges: { create_events: 1, edit_events: 1, run_jobs: 1, update_jobs: 1 }
+		});
+		assert.equal( created_key.data.code, 0, "created group-limited key" );
+		
+		var key_id = created_key.data.api_key.id;
+		var options = { headers: { 'X-Session-ID': '', 'X-API-Key': created_key.data.plain_key } };
+		var event_id = '';
+		var job_id = '';
+		var event = {
+			title: 'Unit Test Target Access Event', enabled: true,
+			category: 'general', plugin: 'shellplug', algo: 'random', targets: ['main'],
+			params: { script: '#!/bin/sh\necho targets\n', duration: 1 }, triggers: [ { type: 'manual', enabled: true } ]
+		};
+		
+		try {
+			let created = await this.request.json( this.api_url + '/app/create_event/v1', event, options );
+			assert.equal( created.data.code, 0, "allowed target can create an Event" );
+			event_id = created.data.event.id;
+			
+			// Hold one job on the conductor so live target updates can be checked
+			// before any dispatch. The administrator creates this delayed fixture.
+			let delayed = await this.request.json( this.api_url + '/app/run_event/v1', {
+				id: event_id, state: 'start_delay', until: Tools.timeNow() + 60
+			});
+			assert.equal( delayed.data.code, 0, "created delayed job fixture" );
+			job_id = delayed.data.id;
+			assert.equal( this.xy.activeJobs[job_id].state, 'start_delay', "fixture remains on the conductor before dispatch" );
+			
+			for (var targets of [ ['main', 'forbidden_group'], ['main', 'outside_server'] ]) {
+				let created = await this.request.json( this.api_url + '/app/create_event/v1', { ...event, targets }, options );
+				assert.equal( created.data.code, 'access', "mixed targets cannot create an Event" );
+				
+				let updated = await this.request.json( this.api_url + '/app/update_event/v1', { id: event_id, targets }, options );
+				assert.equal( updated.data.code, 'access', "mixed targets cannot update an Event" );
+				assert.deepEqual( Tools.findObject(this.xy.events, { id: event_id }).targets, ['main'], "denied update preserves stored targets" );
+				
+				let ran = await this.request.json( this.api_url + '/app/run_event/v1', { id: event_id, targets }, options );
+				assert.equal( ran.data.code, 'access', "mixed runtime target arrays cannot launch a job" );
+				assert.equal( this.xy.findActiveJobs({ event: event_id }).length, 1, "denied run creates no additional job" );
+				
+				let live = await this.request.json( this.api_url + '/app/update_active_job/v1', { id: job_id, targets }, options );
+				assert.equal( live.data.code, 'access', "mixed targets cannot update a live job" );
+				assert.deepEqual( this.xy.activeJobs[job_id].targets, ['main'], "denied live update preserves job targets" );
+			}
+			
+			// Existing mixed-target Events still support reads, but restricted
+			// accounts cannot edit or run them, even with an allowed replacement.
+			let mixed = await this.request.json( this.api_url + '/app/update_event/v1', { id: event_id, targets: ['main', 'forbidden_group'] } );
+			assert.equal( mixed.data.code, 0, "administrator can save mixed targets" );
+			let fetched = await this.request.json( this.api_url + '/app/get_event/v1', { id: event_id }, options );
+			assert.equal( fetched.data.code, 0, "mixed-target Event retains legacy read access" );
+			
+			for (var api of ['update_event', 'run_event']) {
+				let denied = await this.request.json( this.api_url + '/app/' + api + '/v1', { id: event_id, targets: ['main'] }, options );
+				assert.equal( denied.data.code, 'access', "existing mixed targets block " + api );
+			}
+			
+			let restored = await this.request.json( this.api_url + '/app/update_event/v1', { id: event_id, targets: ['main'] } );
+			assert.equal( restored.data.code, 0, "administrator restores allowed targets" );
+			
+			// Check the original live-job targets as well as replacement targets.
+			// Releasing or resuming a mixed-target job must use the same rule.
+			let mixed_job = await this.request.json( this.api_url + '/app/update_active_job/v1', { id: job_id, targets: ['main', 'forbidden_group'] } );
+			assert.equal( mixed_job.data.code, 0, "administrator can set mixed live targets" );
+			for (var api of ['update_active_job', 'job_skip_delay', 'resume_job']) {
+				let denied = await this.request.json( this.api_url + '/app/' + api + '/v1', { id: job_id, targets: ['main'] }, options );
+				assert.equal( denied.data.code, 'access', "existing mixed live targets block " + api );
+			}
+			let restored_job = await this.request.json( this.api_url + '/app/update_active_job/v1', { id: job_id, targets: ['main'] } );
+			assert.equal( restored_job.data.code, 0, "administrator restores allowed live targets" );
+			
+			let live = await this.request.json( this.api_url + '/app/update_active_job/v1', { id: job_id, targets: ['main'] }, options );
+			assert.equal( live.data.code, 0, "allowed live target update succeeds" );
+			let ran = await this.request.json( this.api_url + '/app/run_event/v1/wait', { id: event_id, targets: ['main'] }, options );
+			assert.equal( ran.data.code, 0, "allowed manual run succeeds" );
+			assert.equal( ran.data.job.code, 0, "allowed job completes on the mock satellite" );
+		}
+		finally {
+			// Clean up with the administrator session, including the delayed job
+			// if an assertion failed before the positive run completed.
+			if (job_id && this.xy.activeJobs[job_id]) {
+				await this.request.json( this.api_url + '/app/abort_job/v1', { id: job_id } );
+				await new Promise( (resolve, reject) => this.xy.waitForJob(job_id, function(err) { err ? reject(err) : resolve(); }) );
+			}
+			if (event_id) await this.request.json( this.api_url + '/app/delete_event/v1', { id: event_id } );
+			await this.request.json( this.api_url + '/app/delete_api_key/v1', { id: key_id } );
+		}
 	},
 	
 	async function test_recursive_workflow_privilege_helper(test) {
@@ -88,6 +223,8 @@ exports.tests = [
 		var original_events = this.xy.events;
 		this.xy.events = original_events.concat([
 			{ id: 'allowed_event', type: 'normal', category: 'allowed_cat', targets: ['allowed_group'] },
+			{ id: 'mixed_event', type: 'normal', category: 'allowed_cat', targets: ['allowed_group', 'forbidden_group'] },
+			workflow('mixed_workflow', [eventNode('mixed_event')]),
 			workflow('nested_workflow', [eventNode('allowed_event'), eventNode('cyclic_workflow')]),
 			workflow('cyclic_workflow', [eventNode('nested_workflow')]),
 			workflow('forbidden_workflow', [
@@ -106,6 +243,18 @@ exports.tests = [
 				nodes: [eventNode('allowed_event', ['forbidden_group'])]
 			}, function(data) { error = data; });
 			assert.ok( !denied && error, "forbidden Event Node target override is rejected" );
+			
+			// One allowed target must not authorize other targets on the same
+			// node, whether supplied by an override or a nested saved Event.
+			for (var nodes of [
+				[eventNode('allowed_event', ['allowed_group', 'forbidden_group'])],
+				[eventNode('mixed_workflow')],
+				[{ type: 'job', data: { category: 'allowed_cat', targets: ['allowed_group', 'forbidden_group'] } }]
+			]) {
+				error = null;
+				denied = this.xy.requireWorkflowPrivileges(user, { nodes }, function(data) { error = data; });
+				assert.ok( !denied && error && (error.code == 'access'), "mixed workflow targets are rejected" );
+			}
 			
 			error = null;
 			denied = this.xy.requireWorkflowPrivileges(user, {
