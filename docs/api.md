@@ -26,12 +26,14 @@ API Keys are randomly generated alphanumeric strings, and are 24 characters in l
 muJm8T6QSzqQzuO6MvbOdtlB
 ```
 
-You must include a valid API Key with every API request.  There are three ways to do this: include a `X-API-Key` HTTP request header, an `api_key` query string parameter, or an `api_key` JSON property.
+To authenticate with an API Key, include an `X-API-Key` HTTP request header (recommended), or an `api_key` JSON property in the HTTP POST request body.  For HTTP GET requests, use the header.
 
-Here is a raw HTTP request showing all three methods of passing the API Key (only one of these is required):
+API Keys passed as `api_key` query string parameters are disabled by default, since URLs can expose credentials in logs and browser history.
+
+Here is a raw HTTP POST request showing both methods of passing the API Key (only one of these is required):
 
 ```
-GET /api/app/search_jobs/v1?api_key=muJm8T6QSzqQzuO6MvbOdtlB HTTP/1.1
+POST /api/app/search_jobs/v1 HTTP/1.1
 Host: sample.west.xyops.io
 X-API-Key: muJm8T6QSzqQzuO6MvbOdtlB
 Content-Type: application/json

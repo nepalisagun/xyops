@@ -49,6 +49,54 @@ exports.tests = [
 		assert.match( script.toString(), /^BASE_URL="http:\/\/workers\.example\.test:7552"$/m );
 	},
 	
+	async function test_satellite_install_api_key_with_legacy_support_disabled(test) {
+		// Satellite bootstrap deliberately accepts API keys through its t URL token.
+		// Create a dedicated key with the privilege required by this exception.
+		let { data: key_data } = await this.request.json( this.api_url + '/app/create_api_key/v1', {
+			title: 'Unit Test Satellite Install API Key',
+			active: 1,
+			privileges: { add_servers: 1 }
+		});
+		assert.equal( key_data.code, 0, 'successful satellite API key creation' );
+		
+		var config = this.xy.config.get();
+		var had_legacy = Object.prototype.hasOwnProperty.call(config, 'legacy_api_key_support');
+		var saved_legacy = config.legacy_api_key_support;
+		
+		try {
+			config.legacy_api_key_support = false;
+			var install_url = this.api_url + '/app/satellite/install?t=' + encodeURIComponent(key_data.plain_key);
+			
+			// Clear session credentials so only the API key in t can authenticate.
+			// Fetch the script without executing or installing anything.
+			let { resp, data: script } = await this.request.get( install_url, {
+				headers: { 'X-Session-ID': '', Cookie: '' }
+			} );
+			assert.equal( resp.statusCode, 200, 'successful satellite installer response' );
+			assert.ok( script.toString().includes('AUTH_TOKEN="' + key_data.plain_key + '"'), 'installer retains the API key bootstrap token' );
+			
+			// The URL exception must still enforce the add_servers privilege.
+			let { data: updated } = await this.request.json( this.api_url + '/app/update_api_key/v1', {
+				id: key_data.api_key.id,
+				privileges: {}
+			});
+			assert.equal( updated.code, 0, 'successful removal of satellite install privilege' );
+			
+			let { data } = await this.request.json( install_url, false, {
+				headers: { 'X-Session-ID': '', Cookie: '' }
+			} );
+			assert.equal( data.code, 'access', 'satellite URL API key still requires add_servers' );
+		}
+		finally {
+			// Restore the config and remove the fixture even if an assertion fails.
+			if (had_legacy) config.legacy_api_key_support = saved_legacy;
+			else delete config.legacy_api_key_support;
+			
+			let { data } = await this.request.json( this.api_url + '/app/delete_api_key/v1', { id: key_data.api_key.id } );
+			assert.equal( data.code, 0, 'successful satellite API key cleanup' );
+		}
+	},
+	
 	async function test_satellite_upgrade_preserves_external_https_port(test) {
 		// xySat authenticates upgrade requests using its server ID and auth token.
 		var server_id = 'satunit1';

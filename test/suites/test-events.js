@@ -233,7 +233,10 @@ exports.tests = [
 			var do_wait = suffix.includes('/wait');
 			
 			// A query value containing /wait must remain an ordinary Job param.
-			let { resp, data: raw_data } = await this.request.get(base_url + suffix + '?duration=1&caller=/wait');
+			// Clear user credentials so the Magic Link token authenticates on its own.
+			let { resp, data: raw_data } = await this.request.get(base_url + suffix + '?duration=1&caller=/wait', {
+				headers: { 'X-Session-ID': '', Cookie: '' }
+			});
 			assert.equal( resp.statusCode, 204, suffix + ': HTTP 204 response' );
 			assert.equal( raw_data.length, 0, suffix + ': empty response body' );
 			
@@ -270,7 +273,10 @@ exports.tests = [
 		var url = this.api_url + '/app/magic/v1/' + encodeURIComponent(this.wait_magic_key) + '/wait';
 		url += '?duration=1&caller=magic&output_file=magic-wait.txt';
 		
-		let { data: raw_data } = await this.request.get(url);
+		// Magic Link auth remains independent of ordinary URL API key support.
+		let { data: raw_data } = await this.request.get(url, {
+			headers: { 'X-Session-ID': '', Cookie: '' }
+		});
 		let data = JSON.parse( raw_data.toString('utf8') );
 		
 		assert.equal( data.code, 0, 'successful Magic Link wait response' );

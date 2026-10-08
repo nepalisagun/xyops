@@ -52,6 +52,65 @@ exports.tests = [
         this.api_key_hash = data.api_key.key;
     },
 
+	async function test_api_key_auth_transports(test) {
+		// Exercise real HTTP requests so query and body credentials remain distinct.
+		// Temporarily change only the in-memory config, restoring even an absent key.
+		var config = this.xy.config.get();
+		var had_legacy = Object.prototype.hasOwnProperty.call(config, 'legacy_api_key_support');
+		var saved_legacy = config.legacy_api_key_support;
+		var url = this.api_url + '/app/get_tags/v1';
+		var query_url = url + '?api_key=' + encodeURIComponent(this.api_plain_key);
+		
+		try {
+			for (var legacy of [undefined, false, true]) {
+				if (legacy === undefined) delete config.legacy_api_key_support;
+				else config.legacy_api_key_support = legacy;
+				var label = (legacy === undefined) ? 'unset' : String(legacy);
+				
+				// Clear the shared user's session header and cookies on every request.
+				// A valid API key on the URL should work only with explicit legacy support,
+				// regardless of whether the request uses GET or POST.
+				for (var body of [false, {}]) {
+					var method = (body === false) ? 'GET' : 'POST';
+					let { data } = await this.request.json( query_url, body, {
+						headers: { 'X-Session-ID': '', Cookie: '' }
+					} );
+					
+					assert.equal( data.code, legacy ? 0 : 'session', label + ': ' + method + ' query auth result' );
+					if (legacy) assert.ok( Array.isArray(data.rows), label + ': ' + method + ' authenticated response' );
+					else assert.equal( data.description, 'No Session ID or API Key could be found', label + ': ' + method + ' ignores URL key' );
+				}
+				
+				// Headers and JSON bodies work in every mode.  An invalid URL key must
+				// neither interfere with these credentials nor override their precedence.
+				let header_result = await this.request.json( url + '?api_key=invalid-url-key', false, {
+					headers: { 'X-Session-ID': '', Cookie: '', 'X-API-Key': this.api_plain_key }
+				} );
+				assert.equal( header_result.data.code, 0, label + ': header auth succeeds despite URL key' );
+				assert.ok( Array.isArray(header_result.data.rows), label + ': header authenticated response' );
+				
+				let body_result = await this.request.json( url + '?api_key=invalid-url-key', {
+					api_key: this.api_plain_key
+				}, {
+					headers: { 'X-Session-ID': '', Cookie: '' }
+				} );
+				assert.equal( body_result.data.code, 0, label + ': JSON body auth succeeds despite URL key' );
+				assert.ok( Array.isArray(body_result.data.rows), label + ': body authenticated response' );
+				
+				// Enabling the compatibility switch must still validate the URL key.
+				let invalid_result = await this.request.json( url + '?api_key=invalid-url-key', false, {
+					headers: { 'X-Session-ID': '', Cookie: '' }
+				} );
+				assert.equal( invalid_result.data.code, 'session', label + ': invalid URL key rejected' );
+				assert.equal( invalid_result.data.description, legacy ? 'Invalid API Key' : 'No Session ID or API Key could be found', label + ': invalid URL key auth error' );
+			}
+		}
+		finally {
+			if (had_legacy) config.legacy_api_key_support = saved_legacy;
+			else delete config.legacy_api_key_support;
+		}
+	},
+	
     async function test_api_call_without_privilege_should_fail_access(test) {
         // using API key with no delete_tags privilege should yield access error
         let { data } = await this.request.json( this.api_url + '/app/delete_tag/v1', { id: 'not_found' }, {
