@@ -1,5 +1,19 @@
 # xyOps Changelog
 
+## Version v1.1.5
+
+> October 7, 2026
+
+- [`430f2fa3`](https://github.com/pixlcore/xyops/commit/430f2fa3735564993ae2f2b091bb27c87443d91d): Version 1.1.5
+- [`52cbcbc3`](https://github.com/pixlcore/xyops/commit/52cbcbc3914d557200e99dc10fd8f19ce7c01fce): Security: Disallow API keys on the URL query string, except when enabled via legacy config setting.
+- [`bc154c38`](https://github.com/pixlcore/xyops/commit/bc154c3848f56fd959405f582f8870451bbc83d4): Security: Restrict runtime targeting for group-limited accounts
+- [`b9e124bb`](https://github.com/pixlcore/xyops/commit/b9e124bb539ab82989026e875913aaac92c0eb02): Security: Require user group access to every target in execution APIs
+- [`615a1e84`](https://github.com/pixlcore/xyops/commit/615a1e844348c955b1ed97ebf96b181e91b250f6): Feature: Allow empty workflow Splits when Continue Percentage is zero
+- [`cf99da7e`](https://github.com/pixlcore/xyops/commit/cf99da7e9bd2a707101453d6796722d4229a94aa): Feature: Add success percentage calculation to workflow Join controller
+- [`88120d39`](https://github.com/pixlcore/xyops/commit/88120d39fb6786d328e95aee61d44800e35d12fa): Feature: Special `XY_NO_EXP` marker disables mustache macro expansion in any parameter.  Ref #462
+- [`ba2b7ab8`](https://github.com/pixlcore/xyops/commit/ba2b7ab8e7d3d190c49d099a40a94c5b32cc5bd6): Security: Harden finish_job API so that if called via API key, it must have no category/group restrictions.
+- [`8a4aeb09`](https://github.com/pixlcore/xyops/commit/8a4aeb098fcfa326b938fac6c843b05ed8f7f9af): Meta: Cleanup Dockerfile, reduce layers and optimize for size.
+
 ## Version v1.1.4
 
 > October 2, 2026
