@@ -136,15 +136,16 @@ Page.Events = class Events extends Page.PageUtils {
 					});
 				html += '</div>';
 				
-				// tag
+				// tags
 				html += '<div class="form_cell">';
 					html += this.getFormRow({
-						label: '<i class="icon mdi mdi-tag-multiple-outline">&nbsp;</i>Tag:',
-						content: this.getFormMenuSingle({
-							id: 'fe_el_tag',
+						label: '<i class="icon mdi mdi-tag-multiple-outline">&nbsp;</i>Tags:',
+						content: this.getFormMenuMulti({
+							id: 'fe_el_tags',
 							title: 'Select Tag',
-							options: [['', 'Any Tag']].concat( app.tags ),
-							value: args.tag || '',
+							placeholder: '(Any Tags)',
+							options: app.tags,
+							values: args.tags ? args.tags.split(/\,\s*/) : [],
 							default_icon: 'tag-outline',
 							'data-shrinkwrap': 1
 						})
@@ -236,12 +237,12 @@ Page.Events = class Events extends Page.PageUtils {
 		this.div.html( html ).buttonize();
 		this.addPageDescription( (args.plugin == '_workflow') ? 'Workflows' : 'Events' );
 		
-		// MultiSelect.init( this.div.find('#fe_el_tags') );
-		SingleSelect.init( this.div.find('#fe_el_status, #fe_el_category, #fe_el_target, #fe_el_plugin, #fe_el_tag, #fe_el_trigger, #fe_el_username, #fe_el_action') );
+		MultiSelect.init( this.div.find('#fe_el_tags') );
+		SingleSelect.init( this.div.find('#fe_el_status, #fe_el_category, #fe_el_target, #fe_el_plugin, #fe_el_trigger, #fe_el_username, #fe_el_action') );
 		// $('.header_search_widget').hide();
 		this.setupSearchOpts();
 		
-		this.div.find('#fe_el_tag, #fe_el_status, #fe_el_category, #fe_el_target, #fe_el_plugin, #fe_el_trigger, #fe_el_username, #fe_el_action').on('change', function() {
+		this.div.find('#fe_el_tags, #fe_el_status, #fe_el_category, #fe_el_target, #fe_el_plugin, #fe_el_trigger, #fe_el_username, #fe_el_action').on('change', function() {
 			self.applyTableFilters(true);
 		});
 		
@@ -477,11 +478,12 @@ Page.Events = class Events extends Page.PageUtils {
 		var num_filters = 0;
 		
 		// single-selects
-		['search', 'status', 'category', 'target', 'plugin', 'tag', 'trigger', 'username', 'action'].forEach( function(key) {
+		['search', 'status', 'category', 'target', 'plugin', 'tags', 'trigger', 'username', 'action'].forEach( function(key) {
 			var value = $('#fe_el_' + key).val();
 			if (value.length) { args[key] = value; num_filters++; }
 			else delete args[key];
 		} );
+		if (args.tags) args.tags = args.tags.join(',');
 		
 		var is_filtered = (num_filters > 0);
 		
@@ -518,7 +520,7 @@ Page.Events = class Events extends Page.PageUtils {
 		var args = this.args;
 		var num_filters = 0;
 		
-		['search', 'status', 'category', 'target', 'plugin', 'trigger', 'username', 'action', 'tag'].forEach( function(key) {
+		['search', 'status', 'category', 'target', 'plugin', 'trigger', 'username', 'action', 'tags'].forEach( function(key) {
 			if (key in args) num_filters++;
 		} );
 		
@@ -559,8 +561,8 @@ Page.Events = class Events extends Page.PageUtils {
 		}
 		
 		// tags
-		if ('tag' in args) {
-			if (!item.tags || !item.tags.includes(args.tag)) return false; // hide
+		if ('tags' in args) {
+			if (!item.tags || !includesAll(item.tags, args.tags.split(','))) return false; // hide
 		}
 		
 		// username
