@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const Tools = require('pixl-tools');
 const API = require('../../lib/api.js');
+const Util = require('../../lib/util.js');
 
 // helper: sleep while waiting for an asynchronously launched job
 async function sleep(ms) {
@@ -21,6 +22,54 @@ async function waitForJob(ctx, job_id, opts = {}) {
 	}
 	
 	throw new Error('Timed out waiting for job to finish');
+}
+
+// helper: exercise the real Magic Link handler without launching satellite jobs.
+// Each fixture has its own saved defaults, parameter definitions and token.
+function createMagicAPIFixture(type = 'event') {
+	var api = new API();
+	var token = 'magic-param-test-key';
+	var jobs = [];
+	var event = {
+		id: 'magic_param_test', title: 'Magic Parameter Test', enabled: true, type: type,
+		plugin: (type == 'workflow') ? '_workflow' : 'magic_test_plugin',
+		params: { saved_only: 'saved default' },
+		fields: [
+			{ id: 'caller', type: 'text', value: 'default caller' },
+			{ id: 'count', type: 'text', value: '1', required: true, regex: '^\\d+$' }
+		],
+		triggers: [{ id: 'magic_test_trigger', type: 'magic', enabled: true, token: Tools.digestHex(token + 'magic_param_test', 'sha256') }]
+	};
+	var plugin = {
+		id: 'magic_test_plugin',
+		params: [{ id: 'script', locked: true, required: true }, { id: 'annotate' }]
+	};
+	if (type == 'workflow') event.workflow = { nodes: [] };
+	else Object.assign(event.params, { script: '#!/bin/bash\necho saved\n', annotate: false });
+	
+	api.events = [event];
+	api.plugins = (type == 'workflow') ? [] : [plugin];
+	api.config = { get: function() { return 'test-secret'; } };
+	api.api = { logError: function() {} };
+	api.requireMaster = function() { return true; };
+	api.logDebug = function() {};
+	api.stringValue = Util.prototype.stringValue;
+	api.launchJob = function(job, callback) {
+		jobs.push(job);
+		callback(null, 'magic_test_job');
+	};
+	
+	return {
+		event, jobs,
+		invoke(params = {}, query = {}) {
+			var response = null;
+			api.api_magic({ params, query, request: { url: '/api/app/magic/v1/' + token } }, function(data) {
+				response = data;
+			});
+			assert.ok(response, 'Magic Link handler responded');
+			return response;
+		}
+	};
 }
 
 exports.tests = [
@@ -186,6 +235,11 @@ exports.tests = [
 			algo: 'random',
 			plugin: 'shellplug',
 			params: { script: "#!/bin/bash\necho hello\n", annotate: false, json: false },
+			fields: [
+				{ id: 'duration', type: 'text', value: '1' },
+				{ id: 'caller', type: 'text', value: '' },
+				{ id: 'output_file', type: 'text', value: '' }
+			],
 			limits: [],
 			actions: [],
 			triggers: [
@@ -198,6 +252,110 @@ exports.tests = [
 		assert.equal( data.code, 0, 'successful wait Event creation' );
 		assert.equal( data.event.id, this.wait_event_id, 'expected wait Event ID' );
 		assert.ok( Tools.findObject(data.event.triggers, { type: 'magic' }).token, 'Magic Link key was hashed' );
+	},
+	
+	async function test_api_magic_rejects_undefined_params(test) {
+		// Unknown names must fail before launch regardless of request transport.
+		// Include normalized env names, prototype names and a saved-only default:
+		// saved values are trusted, but do not authorize caller-supplied overrides.
+		for (var type of ['event', 'workflow']) {
+			var fixture = createMagicAPIFixture(type);
+			var keys = ['BASH_ENV', 'LD_PRELOAD', 'PATH', 'NODE_OPTIONS', 'BASH-ENV', 'unknown', 'constructor', 'saved_only'];
+			if (type == 'workflow') keys.push('annotate');
+			
+			for (var key of keys) {
+				var incoming = { [key]: 'untrusted' };
+				for (var transport of ['query', 'post', 'json']) {
+					var params = (transport == 'post') ? incoming : (transport == 'json') ? { json: JSON.stringify(incoming) } : {};
+					var query = (transport == 'query') ? incoming : {};
+					var response = fixture.invoke(params, query);
+					
+					assert.equal(response.code, 'api', type + ': rejects ' + key + ' via ' + transport);
+					assert.ok(response.description.includes('Unknown parameter ID: ' + key), 'error identifies the undeclared name');
+					assert.equal(fixture.jobs.length, 0, 'rejected request never launches a job');
+				}
+			}
+		}
+	},
+	
+	async function test_api_magic_preserves_declared_params_and_input(test) {
+		// Declared event fields and plugin params remain usable through all three
+		// transports. Locked values and saved defaults still come from the Event.
+		for (var type of ['event', 'workflow']) {
+			for (var transport of ['query', 'post', 'json']) {
+				var fixture = createMagicAPIFixture(type);
+				var input = { data: { BASH_ENV: 'input data', unknown: { nested: true } }, files: [] };
+				var incoming = { caller: 'magic caller', count: '2', input: input };
+				if (type == 'event') Object.assign(incoming, { script: 'untrusted replacement', annotate: true });
+				var params = (transport == 'post') ? incoming : (transport == 'json') ? { json: JSON.stringify(incoming) } : {};
+				var query = (transport == 'query') ? incoming : {};
+				var response = fixture.invoke(params, query);
+				
+				assert.equal(response.code, 0, type + ': accepts declared params via ' + transport);
+				assert.equal(fixture.jobs.length, 1, 'valid request launches exactly one job');
+				var job = fixture.jobs[0];
+				assert.equal(job.params.caller, 'magic caller', 'declared Event field is preserved');
+				assert.equal(job.params.count, '2', 'declared value passes regex validation');
+				assert.equal(job.params.saved_only, 'saved default', 'saved undeclared defaults remain intact');
+				assert.deepEqual(job.input, input, 'input data and files remain separate and intact');
+				assert.ok(!('input' in job.params) && !('BASH_ENV' in job.params), 'input is not merged into job params');
+				assert.equal(fixture.event.fields[0].value, 'default caller', 'saved field default is unchanged');
+				
+				if (type == 'event') {
+					assert.equal(job.params.script, fixture.event.params.script, 'locked plugin value cannot be overridden');
+					assert.equal(job.params.annotate, true, 'unlocked plugin parameter is preserved');
+					assert.equal(fixture.event.params.annotate, false, 'saved plugin value is unchanged');
+				}
+				else assert.equal(job.workflow.start, 'magic_test_trigger', 'workflow still starts at its Magic Link trigger');
+			}
+		}
+		
+		var fixture = createMagicAPIFixture();
+		assert.equal(fixture.invoke().code, 0, 'empty request accepts saved defaults');
+		assert.equal(fixture.jobs[0].params.caller, 'default caller', 'missing Event field uses its default');
+		assert.equal(fixture.jobs[0].params.count, '1', 'missing required field uses its default');
+		assert.equal(fixture.jobs[0].input, null, 'missing input remains null');
+	},
+	
+	async function test_api_magic_preserves_parameter_validation(test) {
+		// The name allowlist supplements existing validation, including reserved
+		// overrides that must fail even when a legacy Event declares that field.
+		var fixture = createMagicAPIFixture();
+		for (var invalid of [
+			{ params: { count: '' }, message: 'is required' },
+			{ params: { count: 'invalid' }, message: 'value is invalid' },
+			{ params: { input: 'invalid' }, message: 'must be object' }
+		]) {
+			var response = fixture.invoke(invalid.params);
+			assert.equal(response.code, 'api', 'invalid value is rejected');
+			assert.ok(response.description.includes(invalid.message), 'existing validation explains the rejection');
+			assert.equal(fixture.jobs.length, 0, 'validation failure never launches a job');
+		}
+		
+		fixture.event.fields.push({ id: '_xy_override_uid', value: '' });
+		var response = fixture.invoke({ _xy_override_uid: '0' });
+		assert.equal(response.code, 'api', 'declared reserved override is rejected');
+		assert.ok(response.description.includes('(reserved)'), 'reserved-key validation remains active');
+		assert.equal(fixture.jobs.length, 0, 'reserved override never launches a job');
+	},
+	
+	async function test_api_magic_rejects_undefined_params_http(test) {
+		// Verify the HTTP API rejects undeclared names using only Magic Link auth.
+		var url = this.api_url + '/app/magic/v1/' + encodeURIComponent(this.wait_magic_key);
+		var options = { headers: { 'X-Session-ID': '', Cookie: '' } };
+		var responses = [
+			await this.request.get(url + '?BASH_ENV=untrusted', options),
+			await this.request.json(url, { LD_PRELOAD: 'untrusted' }, options),
+			await this.request.json(url, { json: JSON.stringify({ PATH: 'untrusted' }) }, options)
+		];
+		
+		for (var result of responses) {
+			var data = Buffer.isBuffer(result.data) ? JSON.parse(result.data.toString('utf8')) : result.data;
+			assert.equal(result.resp.statusCode, 400, 'undeclared name returns HTTP 400');
+			assert.equal(data.code, 'api', 'undeclared name returns an API error');
+			assert.ok(data.description.includes('Unknown parameter ID:'), 'error explains the rejected parameter');
+			assert.equal(data.id, undefined, 'rejected request has no Job ID');
+		}
 	},
 	
 	async function test_api_run_event_wait(test) {

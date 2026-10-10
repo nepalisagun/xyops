@@ -1550,7 +1550,7 @@ GET /api/app/magic/v1/TOKEN/wait
 POST /api/app/magic/v1/TOKEN/wait
 ```
 
-Start a job using a "Magic Link".  This is a unique URL with an embedded cryptographic token, which is keyed to fire off a specific event via a special magic trigger.  This API does not require a user session or API key -- the authentication is built right into the URL.  Any parameters passed to the API, either via query string parameters or POST parameters, are passed directly into the job as event parameters.
+Start a job using a "Magic Link".  This is a unique URL with an embedded cryptographic token, which is keyed to fire off a specific event via a special magic trigger.  This API does not require a user session or API key -- the authentication is built right into the URL.  Parameters passed via query string or POST must be defined in the event's `fields` or its plugin's `params`, and are passed into the job as event parameters.  Unknown parameter names are rejected.  The special `json` parameter can wrap a JSON request, and `input` can carry job input data and files separately from event parameters.
 
 Any "administrator locked" event or plugin parameters cannot be overridden by this API.
 
