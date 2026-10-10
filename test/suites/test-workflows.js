@@ -2,6 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const Tools = require('pixl-tools');
 const Workflows = require('../../lib/workflow');
+const Jobs = require('../../lib/job');
+const Util = require('../../lib/util');
 
 // helper: sleep
 async function sleep(ms) {
@@ -52,6 +54,114 @@ function getWorkflow(name) {
 }
 
 exports.tests = [
+	
+	async function test_workflow_subworkflow_output_data(test) {
+		// Two inner workflows share the parent's data, but their ordinary output
+		// must contain only their own job results when the parent collects a Join.
+		const shared = {
+			owner: 'parent', dealers: ['Dealer A', 'Dealer B'],
+			result: { code: 'PARENT_VALUE' }
+		};
+		const inner_node = { id: 'inner', type: 'event' };
+		const join_node = { id: 'join', type: 'controller', data: { controller: 'join' } };
+		const parent = { id: 'parent', workflow: {
+			nodes: [inner_node, join_node, { id: 'final', type: 'job' }],
+			state: { join: {} }, jobs: { inner: [] },
+			connections: [
+				{ source: 'inner', dest: 'join', condition: 'continue' },
+				{ source: 'join', dest: 'final' }
+			]
+		} };
+		const finished = {};
+		let joined;
+		const engine = Object.assign(new Workflows(), {
+			activeJobs: { parent },
+			jobDetails: { parent: { workflowData: shared, wfJobData: {} } },
+			mergeConcatInto: Util.prototype.mergeConcatInto,
+			getCompletedJobConditions: Jobs.prototype.getCompletedJobConditions,
+			logWorkflow() {},
+			runWorkflowNode(opts) { joined = opts.overrides.input.data; },
+			finishJob(job) {
+				// Model finishJob's final record and parent notification without storage.
+				const completed = finished[job.id] = Tools.mergeHashes(job, this.jobDetails[job.id]);
+				delete this.activeJobs[job.id];
+				delete this.jobDetails[job.id];
+				if (job.workflow.job) this.finishWorkflowJob(completed);
+			}
+		});
+		
+		const outputs = shared.dealers.map( function(dealer) {
+			return { result: { key: [dealer], code: 'SUCCESS' } };
+		} );
+		const children = outputs.map( function(data, idx) {
+			const id = 'inner' + idx;
+			const leaf_id = 'leaf' + idx;
+			const child = { id, workflow: {
+				job: parent.id, node: inner_node.id, nodes: [], connections: [], state: {},
+				jobs: { leaf: [{ id: leaf_id, code: 0 }] }
+			} };
+			engine.activeJobs[id] = child;
+			engine.jobDetails[id] = { workflowData: shared, wfJobData: { [leaf_id]: data } };
+			return child;
+		} );
+		
+		// Complete the actual inner workflow aggregation and parent collection.
+		children.forEach( function(child, idx) {
+			engine.tickWorkflow(child);
+			assert.deepEqual(finished[child.id].data, outputs[idx], 'inner output excludes shared fields and preserves colliding result');
+			assert.equal(finished[child.id].workflowData, shared, 'inner workflow retains its shared object for parent completion');
+		} );
+		engine.runWFController_join({ job: parent, node: join_node });
+		assert.deepEqual(joined.items, outputs, 'each Join item contains only its corresponding inner output');
+		assert.equal(joined.percentage, 100, 'both inner runs succeeded');
+		assert.deepEqual(shared.dealers, ['Dealer A', 'Dealer B'], 'inner completions do not duplicate shared arrays');
+		
+		// The parent completion scheduled by finishWorkflowJob still exports
+		// shared data at the top level, including its existing key precedence.
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(finished.parent.data.owner, 'parent', 'top-level workflow promotes shared data');
+		assert.deepEqual(finished.parent.data.dealers, shared.dealers, 'top-level output contains the shared list once');
+		assert.deepEqual(finished.parent.data.result, shared.result, 'top-level promotion retains shared key precedence');
+		assert.ok(!Object.hasOwn(finished.parent, 'workflowData'), 'top-level workflow removes promoted workflowData');
+	},
+	
+	async function test_workflow_shared_data_merge(test) {
+		// Completion may return the exact shared object, including when startup
+		// actions abort a sub-workflow before its normal completion cleanup.
+		const cases = [
+			{ name: 'shared successful completion', shared: true, code: 0 },
+			{ name: 'shared startup abort', shared: true, code: 'abort' },
+			{ name: 'shared retry', shared: true, code: 1, retried: true },
+			{ name: 'separate sparse update', update: { dealers: ['Dealer C'], status: 'updated' } },
+			{ name: 'equal values in a separate object', update: { dealers: ['Dealer A', 'Dealer B'] } },
+			{ name: 'no update' }
+		];
+		
+		cases.forEach( function(item) {
+			const shared = { owner: 'parent', dealers: ['Dealer A', 'Dealer B'] };
+			const parent = { id: 'parent', complete: true, workflow: {
+				nodes: [{ id: 'inner', type: 'event' }], jobs: { inner: [] }
+			} };
+			const details = { workflowData: shared, wfJobData: {} };
+			const engine = Object.assign(new Workflows(), {
+				activeJobs: { parent }, jobDetails: { parent: details },
+				mergeConcatInto: Util.prototype.mergeConcatInto, logWorkflow() {}
+			});
+			const child = { id: 'child', code: item.code || 0, retried: item.retried,
+				workflow: { job: parent.id, node: 'inner' }, data: { result: 'SUCCESS' }
+			};
+			if (item.shared) child.workflowData = shared;
+			else if (item.update) child.workflowData = item.update;
+			
+			// Keep the parent complete to isolate result collection from new nodes.
+			engine.finishWorkflowJob(child);
+			const expected = ['Dealer A', 'Dealer B'].concat(item.update ? item.update.dealers : []);
+			assert.deepEqual(shared.dealers, expected, item.name + ': only separate updates concatenate arrays');
+			assert.equal(shared.owner, 'parent', item.name + ': inherited scalar remains available');
+			if (item.update && item.update.status) assert.equal(shared.status, 'updated', 'sparse update adds new keys');
+			assert.deepEqual(details.wfJobData.child, item.retried ? {} : child.data, item.name + ': ordinary output collection is preserved');
+		} );
+	},
 	
 	async function test_workflow_magic_inheritance(test) {
 		// Event nodes, ad-hoc jobs and nested workflows all receive the request
