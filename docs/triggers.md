@@ -186,7 +186,9 @@ This trigger type generates a unique URL to start a job from a web request (a.k.
 - A direct link to start a job via a simple URL request (the response is JSON).
 - A link to a standalone HTML landing page (no login required), where the user can provide event parameters, and upload files (if allowed).
 
-For the direct link, you can include query string and/or POST parameters defined in the event's `fields` or its plugin's `params`, and they will be passed directly into the [Job.params](data.md#job-params) object for the running job.  Unknown parameter names are rejected.  You can then access the declared parameters inside your job plugin script by reading the JSON from STDIN, or by using environment variables.  The special `input` object can carry job input data and files separately from event parameters.
+For the direct link, you can include query string and/or POST parameters defined in the event's `fields` or its plugin's `params`, and they will be passed directly into the [Job.params](data.md#job-params) object for the running job.  Unknown names are filtered out of job parameters, without rejecting the request.  You can then access the declared parameters inside your job plugin script by reading the JSON from STDIN, or by using environment variables.  The special `input` object can carry job input data and files separately from event parameters.
+
+The [Job.magic](data.md#job-magic) object keeps the original POST and query data, including unknown names, along with scrubbed request headers and the original JSON or raw text body as a UTF-8 string.  This lets your plugin read arbitrary webhook payloads and verify signatures without turning every payload field into an event parameter.  Workflow sub-jobs, including nested workflows, inherit the metadata, and retries preserve it.
 
 For the landing page presentation, when the job is started, progress is streamed back to the page for live updates.  When the job completes, the user is presented with the job results, including any output files, data, and other user-provided content in the job.
 

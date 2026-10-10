@@ -1550,9 +1550,11 @@ GET /api/app/magic/v1/TOKEN/wait
 POST /api/app/magic/v1/TOKEN/wait
 ```
 
-Start a job using a "Magic Link".  This is a unique URL with an embedded cryptographic token, which is keyed to fire off a specific event via a special magic trigger.  This API does not require a user session or API key -- the authentication is built right into the URL.  Parameters passed via query string or POST must be defined in the event's `fields` or its plugin's `params`, and are passed into the job as event parameters.  Unknown parameter names are rejected.  The special `json` parameter can wrap a JSON request, and `input` can carry job input data and files separately from event parameters.
+Start a job using a "Magic Link".  This is a unique URL with an embedded cryptographic token, which is keyed to fire off a specific event via a special magic trigger.  This API does not require a user session or API key -- the authentication is built right into the URL.  Parameters defined in the event's `fields` or its plugin's `params` are passed into [Job.params](data.md#job-params).  Unknown names are filtered out of job parameters, without rejecting the request.  The original POST and query data remain available in [Job.magic](data.md#job-magic).  The special `json` parameter can wrap a JSON request, and `input` can carry job input data and files separately from event parameters.
 
 Any "administrator locked" event or plugin parameters cannot be overridden by this API.
+
+The job's `magic` object also includes scrubbed request headers and the original JSON or raw text body as a UTF-8 string.  Plugins can use `job.magic.headers` and `job.magic.body` to verify webhook signatures against the original payload.  Workflow sub-jobs, including nested workflows, inherit this metadata, and retries preserve it.  See [Job.magic](data.md#job-magic) for the complete format and body availability.
 
 See [Magic Link Trigger](triggers.md#magic-link) for more details.
 

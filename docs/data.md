@@ -814,6 +814,10 @@ When the job was launched from another job (custom action or workflow step), thi
 | `description` | String | The [Job.description](#job-description) of the job which launched the current job. |
 | `params` | Object | Optional copy of the calling workflow's user parameters, supplied by a [Run Event](actions.md#run-event) job action executed by a workflow or one of its sub-jobs. |
 
+### Job.params
+
+The event and plugin parameters used for this job, including saved defaults and any runtime overrides.  See [Event.params](#event-params) for details.  For [Magic Link](triggers.md#magic-link) requests, only incoming names defined in the event's `fields` or its plugin's `params` are accepted here.  Other incoming names remain available in [Job.magic](#job-magic).
+
 ### Job.input
 
 When another job passes data or files to the current job, an `input` object is populated.  The object may have the following properties:
@@ -824,6 +828,35 @@ When another job passes data or files to the current job, an `input` object is p
 | `files` | Array | An array of files supplied to the job, from a previous job, storage bucket, or trigger plugin |
 
 The format of the `data` object is freeform, and completely user-defined.  The `files` array will be formatted the same as [Job.files](#job-files).
+
+### Job.magic
+
+For jobs launched by a [Magic Link](triggers.md#magic-link), this object contains the original request metadata.  It is included in the job JSON supplied to plugins via STDIN and in the full job record.  The metadata is separate from [Job.params](#job-params) and does not create process environment variables.
+
+| Property Name | Type | Description |
+|---------------|------|-------------|
+| `headers` | Object | Request headers with lowercase names, after credential headers are scrubbed. |
+| `body` | String / null | Original JSON or raw text request body as a UTF-8 string, before JSON parsing.  See availability below. |
+| `params` | Object | Original parsed POST data, including names filtered out of `Job.params`.  The redundant raw body Buffer is omitted. |
+| `query` | Object | Original parsed query string parameters, kept separate from POST data. |
+
+The `headers` object excludes `x-api-key`, `x-session-id`, `x-csrf-token`, `authorization`, `proxy-authorization`, and `cookie`.  Other headers, including webhook signature headers such as `linear-signature`, are retained.
+
+The `body` is intended for valid UTF-8 text payloads.  JSON and raw text requests retain their original whitespace, escapes and characters.  Form submissions parsed as URL-encoded or multipart data have a `null` body, as do requests without a buffered body.  An explicitly empty raw body is the empty string (`""`).
+
+To calculate a webhook's HMAC-SHA256 signature using your `signingSecret`, hash the retained body directly after checking that it is a string:
+
+```js
+const crypto = require('node:crypto');
+
+const signature = crypto.createHmac('sha256', signingSecret)
+	.update(job.magic.body, 'utf8')
+	.digest('hex');
+```
+
+Compare this digest with the appropriate signature header using your webhook provider's verification procedure.  Recreating the body with `JSON.stringify(job.magic.params)` may change the original payload and produce a different signature.
+
+Workflow event and ad-hoc job nodes inherit `magic`, including jobs inside nested workflows.  Automatic retries and "Run Job Again" preserve the original metadata as well, so it may be present when [Job.source](#job-source) is `workflow` or `user`.  Plugin updates cannot replace the stored metadata.
 
 ### Job.retried
 

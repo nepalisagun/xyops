@@ -53,6 +53,57 @@ function getWorkflow(name) {
 
 exports.tests = [
 	
+	async function test_workflow_magic_inheritance(test) {
+		// Event nodes, ad-hoc jobs and nested workflows all receive the request
+		// that started the parent. Inheritance depends on metadata, not source.
+		var magic = {
+			headers: { 'linear-signature': 'original' }, body: '{ "text": "café" }',
+			params: { unknown: { value: 42 } }, query: { caller: 'original' }
+		};
+		for (var has_magic of [true, false]) {
+			var children = [];
+			var engine = Object.assign(new Workflows(), {
+				events: [
+					{ id: 'event', title: 'Event', params: {}, triggers: [], actions: [], limits: [] },
+					{ id: 'nested', title: 'Nested Workflow', params: {}, actions: [], limits: [],
+						workflow: { nodes: [], connections: [] }, triggers: [{ id: 'manual', type: 'manual', enabled: true }] }
+				],
+				plugins: [{ id: 'plugin', title: 'Plugin' }],
+				config: { get() { return 1000; } },
+				jobDetails: { parent: { workflowData: {} } },
+				countTotalWFJobs() { return 0; }, logWorkflow() {},
+				launchJob(job, callback) { children.push(job); callback(null, 'child_' + children.length); }
+			});
+			if (has_magic) engine.jobDetails.parent.magic = magic;
+			var parent = {
+				id: 'parent', event: 'workflow_event', source: 'user', params: {},
+				workflow: { state: { event: {}, job: {}, nested: {} }, jobs: {}, connections: [] }
+			};
+			
+			engine.runWFNode_event({ job: parent, node: { id: 'event', data: { event: 'event' } } });
+			engine.runWFNode_job({ job: parent, node: { id: 'job', data: { plugin: 'plugin', params: {} } } });
+			engine.runWFNode_event({ job: parent, node: { id: 'nested', data: { event: 'nested' } } });
+			assert.equal(children.length, 3, 'all three node types launch');
+			assert.equal(children[2].workflow.start, 'manual', 'nested workflow retains its own start node');
+			
+			// launchJob moves a nested workflow's metadata to its own details.
+			// Start another job from that context to exercise a second generation.
+			engine.jobDetails.nested_job = { workflowData: {} };
+			if (children[2].magic) engine.jobDetails.nested_job.magic = children[2].magic;
+			var nested = {
+				id: 'nested_job', event: 'nested', source: 'workflow', params: {},
+				workflow: { state: { job: {} }, jobs: {}, connections: [] }
+			};
+			engine.runWFNode_job({ job: nested, node: { id: 'job', data: { plugin: 'plugin', params: {} } } });
+			
+			for (var child of children) {
+				if (has_magic) assert.deepEqual(JSON.parse(JSON.stringify(child)).magic, magic, 'child inherits original metadata through JSON transport');
+				else assert.ok(!Object.hasOwn(child, 'magic'), 'ordinary workflow does not acquire Magic Link metadata');
+				assert.ok(!Object.hasOwn(child.params, 'unknown'), 'metadata does not leak into child params');
+			}
+		}
+	},
+	
 	async function test_workflow_split_empty_continue(test) {
 		// Empty lists may continue only when the Split does not require successful jobs.
 		const cases = [

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const vm = require('vm');
 const Tools = require('pixl-tools');
+const API = require('../../lib/api.js');
 const Jobs = require('../../lib/job.js');
 const Actions = require('../../lib/action.js');
 const Util = require('../../lib/util.js');
@@ -159,6 +160,7 @@ exports.tests = [
 		// Retrying a test job must retain its action condition selection.
 		var retry_job = null;
 		var jobs = Object.assign(new Jobs(), {
+			jobDetails: {},
 			appendMetaLog() {},
 			logJob() {},
 			launchJob(job, callback) {
@@ -177,6 +179,79 @@ exports.tests = [
 		assert.deepEqual( retry_job.test_conditions, ['complete'], 'retry retains selected test conditions' );
 		assert.notEqual( retry_job.test_conditions, job.test_conditions, 'retry has its own condition array' );
 		assert.deepEqual( jobs.getCompletedJobConditions(job), [], 'intermediate attempt has no completion counters' );
+	},
+	
+	async function test_job_retry_preserves_magic_inputs(test) {
+		// Exercise both retry construction and the real launch method. Only the
+		// reusable inputs may survive: prior output and timelines must start fresh.
+		var magic = {
+			headers: { 'linear-signature': 'test-signature' }, body: '{ "text": "café" }',
+			params: { payload: { value: 42 } }, query: { caller: 'original' }
+		};
+		var info = {
+			magic, input: { data: { original: true }, files: [] }, workflowData: { shared: { value: 42 } },
+			data: { previous_output: true }, files: [{ filename: 'previous-output.txt' }],
+			output: 'previous log', activity: [{ msg: 'previous meta row' }],
+			timelines: { second: [{ epoch: 1 }], minute: [] }, wfJobData: { previous: { value: 42 } },
+			serverData: { previous_server: true }
+		};
+		var jobs = Object.assign(new Jobs(), {
+			events: [{ id: 'retry_event', enabled: true, fields: [] }],
+			plugins: [{ id: 'retry_plugin', enabled: true, command: 'noop', params: [] }],
+			categories: [{ id: 'general', enabled: true, actions: [], limits: [] }],
+			config: {
+				get(key) { return (key == 'job_env') ? {} : 0; },
+				getPath(key) { return key.startsWith('job_universal_') ? [] : ''; }
+			},
+			stats: { currentMinute: {} }, activeJobs: {}, jobDetails: { original: info },
+			deleteJobLaunchContext: API.prototype.deleteJobLaunchContext,
+			messageSub: value => value,
+			appendMetaLog() {}, logJob() {}, monitorJob() {}
+		});
+		var job = {
+			id: 'original', type: 'event', event: 'retry_event', category: 'general', plugin: 'retry_plugin',
+			source: 'magic', code: 1, params: {}, actions: [], tags: [],
+			limits: [{ type: 'retry', enabled: true, amount: 2 }]
+		};
+		
+		// Run two retry generations to ensure details are restored each time,
+		// even though launchJob removes magic from the active job record.
+		for (var attempt = 1; attempt <= 2; attempt++) {
+			jobs.checkRetryJob(job);
+			var retry = Object.values(jobs.activeJobs).find(candidate => candidate.retry_prev == job.id);
+			assert.ok(retry, 'retry attempt is launched');
+			assert.equal(retry.retry_count, attempt, 'retry counter advances normally');
+			assert.ok(job.retried, 'previous attempt is marked as retried');
+			var details = jobs.jobDetails[retry.id];
+			
+			for (var key of ['input', 'workflowData', 'magic']) {
+				assert.deepEqual(details[key], info[key], key + ' is preserved in new job details');
+				assert.notEqual(details[key], info[key], key + ' is an independent snapshot');
+				assert.ok(!Object.hasOwn(retry, key), key + ' stays out of active-job broadcasts');
+			}
+			assert.notEqual(details.magic.params.payload, info.magic.params.payload, 'nested metadata is deep-copied');
+			for (var key of ['data', 'files', 'output', 'activity', 'timelines', 'wfJobData', 'serverData']) {
+				assert.ok(!Object.hasOwn(retry, key) && !Object.hasOwn(details, key), key + ' from the previous attempt is discarded');
+			}
+			
+			job = retry;
+			job.code = 1;
+		}
+	},
+	
+	async function test_job_magic_cannot_be_updated(test) {
+		// Plugin updates may report status, but cannot replace the original
+		// request metadata or introduce it into the live broadcast record.
+		var magic = { headers: { 'linear-signature': 'original' }, body: 'original body', params: {}, query: {} };
+		var jobs = Object.assign(new Jobs(), {
+			activeJobs: { protected: { id: 'protected', state: 'active' } },
+			jobDetails: { protected: { magic } },
+			config: { get() { return ''; } }
+		});
+		jobs.updateJobData({ protected: { id: 'protected', magic: { body: 'replacement' }, status: 'still running' } });
+		assert.equal(jobs.activeJobs.protected.status, 'still running', 'ordinary plugin update is applied');
+		assert.ok(!Object.hasOwn(jobs.activeJobs.protected, 'magic'), 'metadata is not copied into active job updates');
+		assert.deepEqual(jobs.jobDetails.protected.magic, magic, 'original metadata remains intact');
 	},
 	
 	async function test_job_retry_skips_aggregate_stats(test) {
@@ -215,7 +290,8 @@ exports.tests = [
 	},
 	
 	async function test_job_run_again_keeps_test_conditions(test) {
-		// Exercise the real browser handler with a captured API request.
+		// Exercise the real browser handler with a captured API request. A manual
+		// rerun keeps both test conditions and the original Magic Link metadata.
 		var payload = null;
 		var context = {
 			Page: { PageUtils: class {} },
@@ -232,15 +308,18 @@ exports.tests = [
 		vm.runInNewContext( fs.readFileSync('htdocs/js/pages/Job.class.js', 'utf8'), context );
 		
 		var page = new context.Page.Job();
+		var magic = { headers: { 'linear-signature': 'original' }, body: '{ "text": "café" }', params: {}, query: {} };
 		page.job = {
 			id: 'jprevious', event: 'etest', type: 'default', test: true,
-			test_conditions: ['complete'], params: {}, tags: [], code: 1
+			test_conditions: ['complete'], params: {}, tags: [], code: 1, magic
 		};
 		page.do_run_again();
 		
 		assert.ok( payload, 'run-again sends a job to the API' );
 		assert.deepEqual( payload.test_conditions, ['complete'], 'run-again retains selected test conditions' );
 		assert.equal( payload.id, 'etest', 'run-again targets the original event' );
+		assert.deepEqual( payload.magic, magic, 'run-again retains the original request metadata');
+		assert.notEqual( payload.magic, magic, 'run-again sends an independent metadata snapshot');
 	},
 	
 	async function test_job_plugin_param_defaults(test) {
