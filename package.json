@@ -72,7 +72,7 @@
 		"pixl-server-storage": "^4.2.2",
 		"pixl-server-unbase": "^1.0.3",
 		"pixl-server-user": "^2.0.2",
-		"pixl-server-web": "^3.0.4",
+		"pixl-server-web": "^3.0.5",
 		"pixl-server-debug": "^1.0.0",
 		"pixl-tools": "^2.0.3",
 		"pixl-xyapp": "^2.1.44",
