@@ -1,5 +1,18 @@
 # xyOps Changelog
 
+## Version v1.1.6
+
+> October 10, 2026
+
+- [`c29f624d`](https://github.com/pixlcore/xyops/commit/c29f624d2529f624366766096fbe40347a00c6e8): Version 1.1.6
+- [`de7828aa`](https://github.com/pixlcore/xyops/commit/de7828aa15eb4d9a8640036b32a60132c96516a6): Bug Fix: Sub-workflow output contamination and shared array duplication
+- [`816876f6`](https://github.com/pixlcore/xyops/commit/816876f6563accef956670891477fb764b2ce86d): Feature: Expose Magic Link request metadata in job.magic
+- [`7649eeb4`](https://github.com/pixlcore/xyops/commit/7649eeb4678e0a8cb957e5b36ed08b4d94de5c45): Dep: Bump pixl-xyapp to v2.1.45 for pagination controls under paginated tables.
+- [`53bbfd0e`](https://github.com/pixlcore/xyops/commit/53bbfd0e794f8fbb473f5f7888df9695dc641205): Dep: Bump pixl-server-web to v3.0.5 for new raw request feature
+- [`f6677dc5`](https://github.com/pixlcore/xyops/commit/f6677dc572a769a7d40400ff9f47d11edd6583b7): Security: Reject undeclared Magic Link parameters
+- [`5e1fdf77`](https://github.com/pixlcore/xyops/commit/5e1fdf778dfc5bdabda328e1649f754ab0365f50): Feature: New prediction modes for upcoming jobs on dashboard.
+- [`1985c13d`](https://github.com/pixlcore/xyops/commit/1985c13d0d1a0cbc1ee693795e48cddcbb001083): Feature: Multi-select tag filter on Events and Workflows list.  Fixes #467.
+
 ## Version v1.1.5
 
 > October 7, 2026
