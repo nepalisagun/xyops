@@ -101,7 +101,18 @@ Page.Dashboard = class Dashboard extends Page.PageUtils {
 		// upcoming jobs
 		html += '<div class="box" id="d_upcoming_jobs">';
 			html += '<div class="box_title">';
-				html += 'Upcoming Jobs';
+				
+				html += '<div class="box_title_widget" style="overflow:visible; font-size:13px;">' + this.getFormMenuSingle({
+					id: 'fe_du_type',
+					title: 'Prediction Type',
+					options: [ { id: 'all', title: "All Jobs" }, { id: 'first', title: "First Only" } ],
+					value: app.getPref('dash_upcoming_type') || '',
+					onChange: '$P().getUpcomingJobs()',
+					'data-shrinkwrap': 1,
+					'data-compact': 1
+				}) + '</div>';
+				
+				html += '<span>Upcoming Jobs</span>';
 			html += '</div>';
 			html += '<div class="box_content table">';
 				html += '<div class="loading_container"><div class="loading"></div></div>';
@@ -142,7 +153,7 @@ Page.Dashboard = class Dashboard extends Page.PageUtils {
 		
 		this.div.html( html );
 		
-		SingleSelect.init( this.div.find('select.sel_chart_size') );
+		SingleSelect.init( this.div.find('select.sel_chart_size, #fe_du_type') );
 		
 		this.updateDashGrid();
 		this.renderActiveJobs();
@@ -159,6 +170,26 @@ Page.Dashboard = class Dashboard extends Page.PageUtils {
 		if (show_welcome) this.getWelcomeDoc();
 		
 		return true;
+	}
+	
+	getUpcomingJobs() {
+		// predict and render upcoming jobs
+		var self = this;
+		app.setPref('dash_upcoming_type', $('#fe_du_type').val());
+		
+		var opts = {
+			events: app.events,
+			duration: 86400 * 32,
+			burn: 16,
+			max: 1000,
+			first: !!($('#fe_du_type').val() == 'first'),
+			progress: null,
+			callback: function(jobs) {
+				self.upcomingJobs = jobs;
+				self.renderUpcomingJobs();
+			}
+		};
+		this.predictUpcomingJobs(opts);
 	}
 	
 	getWelcomeDoc() {

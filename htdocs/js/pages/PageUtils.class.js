@@ -819,7 +819,7 @@ Page.PageUtils = class PageUtils extends Page.Base {
 				rows: this.upcomingJobs.slice( this.upcomingOffset, this.upcomingOffset + config.alt_items_per_page ),
 				list: { length: this.upcomingJobs.length }
 			},
-			cols: ['Event', 'Category', 'Targets', 'Source', 'Scheduled Time', 'Countdown', 'Actions'],
+			cols: ['Event', 'Category', 'Targets', 'Source', 'Triggers', 'Scheduled Time', 'Countdown', 'Actions'],
 			data_type: 'job',
 			offset: this.upcomingOffset,
 			limit: config.alt_items_per_page,
@@ -835,6 +835,7 @@ Page.PageUtils = class PageUtils extends Page.Base {
 			var nice_date_time = '';
 			var nice_countdown = '';
 			var nice_skip = '';
+			var nice_timing = summarize_event_timings(event);
 			
 			// take over source if plugin modifier
 			if (job.plugin) {
@@ -861,14 +862,24 @@ Page.PageUtils = class PageUtils extends Page.Base {
 				countdown = Math.max( 60, Math.abs(job.epoch - app.epoch) );
 			}
 			
+			if (job.count) {
+				if (job.count > 1000) nice_date_time += ' &times; 1000+';
+				else nice_date_time += ' &times; ' + job.count;
+			}
+			
 			nice_countdown = '<i class="mdi mdi-clock-outline">&nbsp;</i>' + get_text_from_seconds_round( countdown );
 			nice_skip = app.hasPrivilege('edit_events') ? `<button class="link danger" onClick="$P().doSkipUpcomingJob(${idx})"><b>Skip Job...</b></button>` : '-';
+			
+			if (job.count) {
+				if (job.epoch < app.epoch) nice_countdown = 'n/a';
+			}
 			
 			var tds = [
 				'<b>' + self.getNiceEvent(job.event, true, { icon: job.invisible ? 'selection-ellipse' : '' }) + '</b>',
 				self.getNiceCategory(event.category, true),
 				self.getNiceTargetList(event.targets),
 				nice_source,
+				nice_timing,
 				nice_date_time,
 				nice_countdown,
 				nice_skip
@@ -975,10 +986,18 @@ Page.PageUtils = class PageUtils extends Page.Base {
 	autoExpireUpcomingJobs() {
 		// automatically remove upcoming jobs that upcame
 		if (!this.upcomingJobs || !this.upcomingJobs.length) return;
+		var recheck = [];
 		
 		while (this.upcomingJobs.length && (this.upcomingJobs[0].epoch <= app.epoch)) {
-			this.upcomingJobs.shift();
+			var job = this.upcomingJobs.shift();
+			if (job.count) recheck.unshift(job);
 		}
+		
+		// handle jobs with a count (first mode)
+		recheck.forEach( job => {
+			job.count--;
+			if (job.count) this.upcomingJobs.unshift(job);
+		} );
 	}
 	
 	wfFindSpaceNear(opts) {

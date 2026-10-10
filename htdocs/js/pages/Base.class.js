@@ -928,8 +928,28 @@ Page.Base = class Base extends Page {
 			// today
 			result += 'Today at ' + this.getNiceTimeText(epoch, secs);
 		}
+		else if ((dargs.yyyy_mm == nargs.yyyy_mm) && (dargs.mday == nargs.mday + 1)) {
+			// tomorrow (in same month)
+			result += 'Tomorrow at ' + this.getNiceTimeText(epoch, secs);
+		}
+		else if ((dargs.yyyy_mm == nargs.yyyy_mm) && (dargs.mday == nargs.mday - 1)) {
+			// yesterday (in same month)
+			result += 'Yesterday at ' + this.getNiceTimeText(epoch, secs);
+		}
+		else if (nargs.yyyy == dargs.yyyy) {
+			// some other day in same year
+			result += this.formatDate(epoch, { 
+				// year: 'numeric',
+				month: 'short',
+				day: 'numeric',
+				// weekday: 'long',
+				hour: 'numeric',
+				minute: '2-digit',
+				second: secs ? '2-digit' : false
+			});
+		}
 		else {
-			// some other day
+			// some other day in different year
 			result += this.getShortDateTimeText(epoch, secs);
 			// result += '<span title="' + this.getNiceDateTimeText(epoch) + '">' + this.getNiceDateText(epoch) + '</span>';
 		}
@@ -2288,6 +2308,8 @@ Page.Base = class Base extends Page {
 				);
 			}
 			
+			event.count = 0;
+			
 			return true;
 		} ); // filter events
 		
@@ -2418,7 +2440,12 @@ Page.Base = class Base extends Page {
 				if (event.invisible) extras.invisible = true;
 				
 				// add job!
-				opts.jobs.push({ event: event.id, epoch: opts.epoch, type: scheduled, ...extras });
+				if (!opts.first || !event.count) {
+					opts.jobs.push({ event: event.id, epoch: opts.epoch, type: scheduled, ...extras });
+				}
+				
+				// keep track of job count per event
+				event.count++;
 				
 				// simulate event stat increments (used by day_limits)
 				event.stats.job_start = (event.stats.job_start || 0) + 1;
@@ -2433,6 +2460,13 @@ Page.Base = class Base extends Page {
 		if ((opts.epoch > opts.end) || (opts.jobs.length >= opts.max)) {
 			// all done, reached target epoch (inclusive)
 			if (opts.jobs.length > opts.max) opts.jobs.splice( opts.max );
+			
+			// in first mode, copy all counts to initial jobs
+			if (opts.first) opts.events.filter( event => !!event.count ).forEach( event => {
+				var job = find_object( opts.jobs, { event: event.id } );
+				if (job) job.count = event.count;
+			} );
+			
 			delete this.currentPrediction;
 			return opts.callback(opts.jobs);
 		}
